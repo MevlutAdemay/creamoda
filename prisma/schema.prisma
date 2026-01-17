@@ -1,0 +1,271 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/**
+ * ==================== ENUMS ====================
+ */
+
+enum Role {
+  PLAYER // Oyuncular - bakiye sistemini kullanır
+  CONTENT_MANAGER // Ürün/pool/görsel yönetimi
+  SUPER_ADMIN // Tüm sistem ve kullanıcılar
+}
+
+enum SessionStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+enum AuthProvider {
+  GOOGLE
+  CREDENTIALS
+}
+
+/**
+ * ==================== USER ====================
+ */
+
+model User {
+  id String @id @default(cuid())
+
+  // Temel
+  name          String?
+  displayName   String?
+  email         String  @unique @db.Citext
+  emailVerified Boolean @default(false)
+  passwordHash  String? // OAuth için null kalır
+
+  // Rol & OAuth politikası
+  role        Role    @default(PLAYER)
+  isOAuthUser Boolean @default(false) // true ise admin olamaz (CHECK migration'da)
+
+  // Güvenlik
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+  lastLoginIp         String?
+
+  // İlişkiler
+  sessions          Session[]
+  accounts          Account[]
+  activityLogs      ActivityLog[]
+  totp              UserTotp?
+  wallet            PlayerWallet?
+  adminInvitations  AdminInvitation[]
+  companies         Company[]
+  collectionCenters CollectionCenter[]
+
+  // Zaman
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([role])
+  @@index([lockedUntil])
+  @@map("users")
+}
+
+/**
+ * ==================== SESSION ====================
+ */
+
+model Session {
+  id     String @id @default(cuid())
+  userId String
+  token  String @unique @db.VarChar(255)
+
+  // Cihaz takibi
+  deviceId   String // fingerprint/UUID
+  deviceName String?
+  userAgent  String?
+  ipAddress  String? @db.VarChar(64)
+
+  // Durum
+  status         SessionStatus @default(ACTIVE)
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  lastActivityAt DateTime      @default(now())
+
+  // 2FA
+  twoFactorVerified Boolean @default(false)
+
+  // İlişki
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Zaman
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@index([status])
+  @@map("sessions")
+}
+
+/**
+ * ==================== ACCOUNT (OAuth) ====================
+ */
+
+model Account {
+  id     String @id @default(cuid())
+  userId String
+
+  provider          AuthProvider
+  providerAccountId String
+
+  accessToken  String? @db.Text
+  refreshToken String? @db.Text
+  tokenType    String?
+  scope        String?
+  idToken      String? @db.Text
+
+  expiresAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+/**
+ * ==================== ACTIVITY LOG ====================
+ */
+
+model ActivityLog {
+  id         String  @id @default(cuid())
+  userId     String
+  action     String  @db.VarChar(80) // "LOGIN", "ADMIN_INVITE_CREATE", ...
+  entityType String? @db.VarChar(80) // "USER", "PRODUCT", ...
+  entityId   String? @db.VarChar(120)
+  metadata   Json?
+  ipAddress  String? @db.VarChar(64)
+  userAgent  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
+/**
+ * ==================== ADMIN DAVETİ ====================
+ */
+
+model AdminInvitation {
+  id          String    @id @default(cuid())
+  email       String    @unique @db.Citext
+  invitedById String
+  role        Role      @default(SUPER_ADMIN) // Dilersen ADMIN gibi orta rol eklersin
+  token       String    @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  invitedBy User @relation(fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@map("admin_invitations")
+}
+
+/**
+ * ==================== 2FA (TOTP) ====================
+ */
+
+model UserTotp {
+  userId    String   @id
+  secret    String // Şifreli sakla (uygulama katmanında)
+  enabledAt DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_totp")
+}
+
+/**
+ * ==================== CÜZDAN (OYUN EKONOMİSİ) ====================
+ */
+/**
+ * Parayı user'a gömmek kısa vadede "kolay" ama uzun vadede pişmanlık.
+ * Muhasebe, loglama, ve yarışma ekonomisi için ayrı tablo doğru olan.
+ */
+
+model PlayerWallet {
+  id             String  @id @default(cuid())
+  userId         String  @unique
+  balanceUsd     Decimal @default(0) @db.Decimal(12, 2) // Float olmaz.
+  balanceXp      Int     @default(0)
+  balanceDiamond Int     @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@map("player_wallets")
+}
+
+/**
+ * ==================== COMPANY ====================
+ */
+
+model Company {
+  id           String  @id @default(cuid())
+  playerId     String
+  name         String
+  countryId    String? // Country.id
+  cityId       String? // City.id
+  currencyCode String? @default("EUR")
+
+  // İlişkiler
+  player          User             @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  collectionCenters CollectionCenter[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([playerId])
+  @@map("companies")
+}
+
+/**
+ * ==================== COLLECTION CENTER ====================
+ */
+
+model CollectionCenter {
+  id String @id @default(cuid())
+
+  // Company ilişkisi
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  companyId String?
+
+  playerId String
+  player   User   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  // Collection Center bilgileri
+  code        String // "URBAN", "SMART" vs.
+  name        String // "Urban Collection", "Smart Tailoring" gibi
+  description String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@map("collection_centers")
+}
