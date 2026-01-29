@@ -1,9 +1,8 @@
 'use client';
 
-import * as React from 'react';
-import { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 
-type ColorTheme = 'default';
+type ColorTheme = 'default' | 'retro-arcade' | 'solar-dusk' | 'starry-night' | 'vercel' | 'modern-minimal' | 'amethyst-haze' | 'yellow-pallet' | 'luxury';
 
 interface ColorThemeContextType {
   colorTheme: ColorTheme;
@@ -18,11 +17,23 @@ export function ColorThemeProvider({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     setMounted(true);
+    // Load theme from localStorage
+    const saved = localStorage.getItem('color-theme') as ColorTheme;
+    if (saved) {
+      setColorThemeState(saved);
+      document.documentElement.setAttribute('data-color-theme', saved);
+    }
   }, []);
 
   const setColorTheme = (theme: ColorTheme) => {
     setColorThemeState(theme);
+    localStorage.setItem('color-theme', theme);
+    document.documentElement.setAttribute('data-color-theme', theme);
   };
+
+  if (!mounted) {
+    return <>{children}</>;
+  }
 
   return (
     <ColorThemeContext.Provider value={{ colorTheme, setColorTheme }}>
@@ -33,8 +44,8 @@ export function ColorThemeProvider({ children }: { children: React.ReactNode }) 
 
 export function useColorTheme() {
   const context = useContext(ColorThemeContext);
-  if (context === undefined) {
-    throw new Error('useColorTheme must be used within a ColorThemeProvider');
+  if (!context) {
+    throw new Error('useColorTheme must be used within ColorThemeProvider');
   }
   return context;
 }

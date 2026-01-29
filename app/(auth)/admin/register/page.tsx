@@ -45,19 +45,7 @@ export default function AdminRegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted p-4">
-      <div className="absolute top-4 right-4">
-        <ThemeToggle />
-      </div>
-
-      <div className="absolute top-4 left-4">
-        <Link href="/">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Ana Sayfa
-          </Button>
-        </Link>
-      </div>
+    <div className="min-h-screen flex items-center justify-center dark:bg-background via-background  bg-background p-4">
 
       <Card className="w-full max-w-md border-red-200 dark:border-red-900">
         <CardHeader className="space-y-1">

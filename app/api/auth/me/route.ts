@@ -36,6 +36,8 @@ export async function GET() {
         displayName: user.displayName,
         role: user.role,
         emailVerified: user.emailVerified,
+        onboardingStatus: user.onboardingStatus,
+        onboardingStep: user.onboardingStep,
         wallet: user.wallet ? {
           balanceUsd: Number(user.wallet.balanceUsd),
           balanceXp: user.wallet.balanceXp,

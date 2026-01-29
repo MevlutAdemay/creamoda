@@ -55,6 +55,7 @@ export async function POST(request: Request) {
           role: 'PLAYER',
           emailVerified: false,
           isOAuthUser: false,
+          onboardingStatus: 'NEW', // Yeni kullanıcı wizard'a yönlendirilecek
         },
       });
 
@@ -120,6 +121,7 @@ export async function POST(request: Request) {
         name: user.name,
         displayName: user.displayName,
         role: user.role,
+        onboardingStatus: user.onboardingStatus,
       },
       message: 'Kayıt başarılı! Hoş geldiniz!',
     });

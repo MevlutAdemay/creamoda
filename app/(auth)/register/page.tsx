@@ -40,8 +40,13 @@ export default function RegisterPage() {
         throw new Error(data.error || 'Kayıt başarısız');
       }
 
-      // Başarılı kayıt - player sayfasına yönlendir
-      router.push('/player');
+      // Başarılı kayıt - onboardingStatus'a göre yönlendir
+      if (data.user?.onboardingStatus === 'DONE') {
+        router.push('/player');
+      } else {
+        // NEW veya WIZARD durumunda wizard'a yönlendir
+        router.push('/wizard');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Bir hata oluştu');
       setLoading(false);

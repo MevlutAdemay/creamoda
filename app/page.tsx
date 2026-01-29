@@ -8,11 +8,11 @@ import { Shield, User } from "lucide-react";
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted">
+    <main className="max-h-screen bg-linear-to-br from-background via-background to-muted">
       <div className="container mx-auto p-8">
         <div className="flex justify-between items-center mb-12">
           <div>
-            <h1 className="text-5xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
+            <h1 className="text-5xl font-bold bg-linear-to-r from-primary to-purple-600 bg-clip-text text-transparent">
               Creamoda
             </h1>
             <p className="text-muted-foreground mt-2">Moda Endüstrisi Simülasyon Oyunu</p>
