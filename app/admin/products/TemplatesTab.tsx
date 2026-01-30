@@ -47,7 +47,6 @@ type Template = {
   styleTags: StyleTag[];
   productSeason: ProductSeason;
   thermalClass: ThermalClass;
-  seasonalityProfile: { id: string; code: string; name: string; season: ProductSeason } | null;
   seasonScenarioDefinition: { id: string; code: string; name: string; season: string; timing: string | null; variant: string } | null;
   baseCost: string;
   suggestedSalePrice: string;
@@ -65,14 +64,6 @@ type SizeProfile = {
   name: string;
 };
 
-type SeasonalityProfile = {
-  id: string;
-  code: string;
-  name: string;
-  season: ProductSeason;
-  isActive: boolean;
-};
-
 type SeasonScenarioDefinition = {
   id: string;
   code: string;
@@ -86,7 +77,6 @@ type SeasonScenarioDefinition = {
 export default function TemplatesTab() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [sizeProfiles, setSizeProfiles] = useState<SizeProfile[]>([]);
-  const [seasonalityProfiles, setSeasonalityProfiles] = useState<SeasonalityProfile[]>([]);
   const [seasonScenarioDefinitions, setSeasonScenarioDefinitions] = useState<SeasonScenarioDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingOptions, setLoadingOptions] = useState(true);
@@ -96,7 +86,6 @@ export default function TemplatesTab() {
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [seasonalityFilter, setSeasonalityFilter] = useState<'seasonal' | 'non-seasonal'>('seasonal');
   const toast = useToast();
 
   const [formData, setFormData] = useState({
@@ -108,7 +97,6 @@ export default function TemplatesTab() {
     styleTags: [] as StyleTag[],
     productSeason: 'WINTER' as ProductSeason,
     thermalClass: 'MILD' as ThermalClass,
-    seasonalityProfileId: '__none__',
     baseCost: '',
     suggestedSalePrice: '',
     productQuality: 'STANDARD' as ProductQuality,
@@ -160,17 +148,6 @@ export default function TemplatesTab() {
     }
   };
 
-  const fetchSeasonalityProfiles = async () => {
-    try {
-      const res = await fetch('/api/admin/products/seasonality-profiles');
-      if (res.ok) {
-        const data = await res.json();
-        setSeasonalityProfiles(data || []);
-      }
-    } catch (error) {
-    }
-  };
-
   const fetchSeasonScenarioDefinitions = async () => {
     try {
       const res = await fetch('/api/admin/products/season-scenario-definitions');
@@ -185,7 +162,7 @@ export default function TemplatesTab() {
   const fetchAllOptions = async () => {
     setLoadingOptions(true);
     try {
-      await Promise.all([fetchSizeProfiles(), fetchSeasonalityProfiles(), fetchSeasonScenarioDefinitions()]);
+      await Promise.all([fetchSizeProfiles(), fetchSeasonScenarioDefinitions()]);
     } finally {
       setLoadingOptions(false);
     }
@@ -193,7 +170,6 @@ export default function TemplatesTab() {
 
   const handleCreate = () => {
     setEditingTemplate(null);
-    setSeasonalityFilter('seasonal');
     setFormData({
       code: '',
       name: '',
@@ -203,7 +179,6 @@ export default function TemplatesTab() {
       styleTags: [],
       productSeason: 'WINTER',
       thermalClass: 'MILD',
-      seasonalityProfileId: '__none__',
       baseCost: '',
       suggestedSalePrice: '',
       productQuality: 'STANDARD',
@@ -220,10 +195,6 @@ export default function TemplatesTab() {
 
   const handleEdit = (template: Template) => {
     setEditingTemplate(template);
-    // Determine filter mode based on selected profile
-    const profileSeason = template.seasonalityProfile?.season;
-    const filterMode = profileSeason === 'ALL' ? 'non-seasonal' : 'seasonal';
-    setSeasonalityFilter(filterMode);
     setFormData({
       code: template.code,
       name: template.name,
@@ -233,7 +204,6 @@ export default function TemplatesTab() {
       styleTags: template.styleTags || [],
       productSeason: template.productSeason,
       thermalClass: template.thermalClass,
-      seasonalityProfileId: template.seasonalityProfile?.id || '__none__',
       baseCost: template.baseCost,
       suggestedSalePrice: template.suggestedSalePrice,
       productQuality: template.productQuality,
@@ -276,7 +246,6 @@ export default function TemplatesTab() {
       styleTags: formData.styleTags || [],
       productSeason: formData.productSeason,
       thermalClass: formData.thermalClass,
-      seasonalityProfileId: formData.seasonalityProfileId === '__none__' ? null : (formData.seasonalityProfileId || null),
       seasonScenarioDefinitionId: formData.seasonScenarioDefinitionId === '__none__' ? null : (formData.seasonScenarioDefinitionId || null),
       baseCost: parseFloat(formData.baseCost),
       suggestedSalePrice: parseFloat(formData.suggestedSalePrice),
@@ -349,7 +318,7 @@ export default function TemplatesTab() {
           onOpenChange={(open) => {
             setDialogOpen(open);
             // Refresh options when modal opens
-            if (open && (sizeProfiles.length === 0 || seasonalityProfiles.length === 0 || seasonScenarioDefinitions.length === 0)) {
+            if (open && (sizeProfiles.length === 0 || seasonScenarioDefinitions.length === 0)) {
               fetchAllOptions();
             }
           }}
@@ -448,29 +417,7 @@ export default function TemplatesTab() {
                   <label className="text-sm font-medium">Season *</label>
                   <Select
                     value={formData.productSeason}
-                    onValueChange={(value) => {
-                      const newSeason = value as ProductSeason;
-                      // If in non-seasonal mode, switch to seasonal mode when season changes
-                      if (seasonalityFilter === 'non-seasonal') {
-                        setSeasonalityFilter('seasonal');
-                        setFormData({ 
-                          ...formData, 
-                          productSeason: newSeason,
-                          seasonalityProfileId: '__none__',
-                        });
-                        return;
-                      }
-                      // Reset seasonality profile if season changes and current profile doesn't match new season
-                      const currentProfile = seasonalityProfiles.find(p => p.id === formData.seasonalityProfileId);
-                      const newSeasonalityProfileId = currentProfile?.season === newSeason 
-                        ? formData.seasonalityProfileId 
-                        : '__none__';
-                      setFormData({ 
-                        ...formData, 
-                        productSeason: newSeason,
-                        seasonalityProfileId: newSeasonalityProfileId,
-                      });
-                    }}
+                    onValueChange={(value) => setFormData({ ...formData, productSeason: value as ProductSeason })}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -620,78 +567,6 @@ export default function TemplatesTab() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <label className="text-sm font-medium">Seasonality Profile</label>
-                  {/* Filter Toggle */}
-                  <div className="flex gap-2 mb-2">
-                    <Button
-                      type="button"
-                      variant={seasonalityFilter === 'seasonal' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => {
-                        setSeasonalityFilter('seasonal');
-                        // Reset profile if current profile is non-seasonal
-                        const currentProfile = seasonalityProfiles.find(p => p.id === formData.seasonalityProfileId);
-                        if (currentProfile?.season === 'ALL') {
-                          setFormData({ ...formData, seasonalityProfileId: '__none__' });
-                        }
-                      }}
-                    >
-                      Seasonal
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={seasonalityFilter === 'non-seasonal' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => {
-                        setSeasonalityFilter('non-seasonal');
-                        // Reset profile if current profile is seasonal
-                        const currentProfile = seasonalityProfiles.find(p => p.id === formData.seasonalityProfileId);
-                        if (currentProfile && currentProfile.season !== 'ALL') {
-                          setFormData({ ...formData, seasonalityProfileId: '__none__' });
-                        }
-                      }}
-                    >
-                      Non-seasonal
-                    </Button>
-                  </div>
-                  <Select
-                    value={formData.seasonalityProfileId}
-                    onValueChange={(value) => setFormData({ ...formData, seasonalityProfileId: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="None" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">None</SelectItem>
-                      {seasonalityProfiles
-                        .filter((profile) => 
-                          seasonalityFilter === 'non-seasonal'
-                            ? profile.season === 'ALL'
-                            : profile.season === formData.productSeason
-                        )
-                        .map((profile) => (
-                          <SelectItem key={profile.id} value={profile.id}>
-                            {profile.name} ({profile.code})
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                  {seasonalityProfiles.filter((p) => 
-                    seasonalityFilter === 'non-seasonal'
-                      ? p.season === 'ALL'
-                      : p.season === formData.productSeason
-                  ).length === 0 && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {seasonalityFilter === 'non-seasonal'
-                        ? 'No non-seasonal profiles available'
-                        : `No seasonality profiles available for ${formData.productSeason} season`}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium">Season Scenario Definition</label>
                   <Select

@@ -1,3 +1,6 @@
+// lib/game/game-clock.ts
+
+
 /**
  * Game Clock Utilities
  * 
@@ -166,4 +169,49 @@ export function getCycleKey(date: Date): string {
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, '0');
   return `${year}-${month}`;
+}
+
+/**
+ * Settlement period definition (strict, UTC midnight).
+ * Payout on 5th covers: previous month 20th (inclusive) -> current month 4th (inclusive).
+ * Payout on 20th covers: current month 5th (inclusive) -> current month 19th (inclusive).
+ *
+ * @param payoutDayKey - UTC midnight date; must be 5th or 20th of month
+ * @returns { periodStartDayKey, periodEndDayKey } at UTC midnight, or null if invalid
+ */
+export function getPeriodForPayoutDayKey(payoutDayKey: Date): {
+  periodStartDayKey: Date;
+  periodEndDayKey: Date;
+} | null {
+  const normalized = normalizeUtcMidnight(payoutDayKey);
+  const day = normalized.getUTCDate();
+  const month = normalized.getUTCMonth();
+  const year = normalized.getUTCFullYear();
+
+  if (day === 5) {
+    // Period: previous month 20th (incl) -> current month 4th (incl)
+    const prevMonth = month === 0 ? 11 : month - 1;
+    const prevYear = month === 0 ? year - 1 : year;
+    return {
+      periodStartDayKey: new Date(Date.UTC(prevYear, prevMonth, 20, 0, 0, 0, 0)),
+      periodEndDayKey: new Date(Date.UTC(year, month, 4, 0, 0, 0, 0)),
+    };
+  }
+  if (day === 20) {
+    // Period: current month 5th (incl) -> current month 19th (incl)
+    return {
+      periodStartDayKey: new Date(Date.UTC(year, month, 5, 0, 0, 0, 0)),
+      periodEndDayKey: new Date(Date.UTC(year, month, 19, 0, 0, 0, 0)),
+    };
+  }
+  return null;
+}
+
+/**
+ * Returns true if the given dayKey (UTC midnight) is a settlement payout day (5th or 20th).
+ */
+export function isPayoutDay(dayKey: Date): boolean {
+  const normalized = normalizeUtcMidnight(dayKey);
+  const day = normalized.getUTCDate();
+  return day === 5 || day === 20;
 }

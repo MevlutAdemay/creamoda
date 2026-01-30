@@ -276,6 +276,7 @@ enum InventoryMovementType {
 
 enum InventorySourceType {
   WHOLESALE
+  FAST_SUPPLY // DesignStudio fast supply order (WholesaleOrder)
   FACTORY
   SALE_RETURN
   SALES_RESERVATION // Keep for historical data compatibility
@@ -539,6 +540,7 @@ model Company {
   financeScheduleConfig FinanceScheduleConfig?
   walletTransactions PlayerWalletTransaction[]
   modaverseSettlements ModaverseSettlement[]
+  modaverseOrders      ModaverseOrder[]
   wholesaleOrders    WholesaleOrder[]
 
   // Game clock (1-1)
@@ -621,7 +623,6 @@ model Country {
   cities    City[]
   companies Company[]
   companyBuildings CompanyBuilding[]
-  wholesaleSuppliers WholesaleSupplier[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -663,7 +664,6 @@ model City {
   region  Region? @relation(fields: [regionId], references: [id], onDelete: SetNull)
 
   companies Company[]
-  wholesaleSuppliers WholesaleSupplier[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -702,6 +702,8 @@ model CompanyBuilding {
   dailyProductSalesLogs DailyProductSalesLog[]
   metricStates        BuildingMetricState[]
   wholesaleOrders     WholesaleOrder[]
+  modaverseSettlements ModaverseSettlement[]
+  modaverseOrders     ModaverseOrder[]
   inventoryMovementsArchive InventoryMovementArchive[] @relation("InventoryMovementsArchive")
   inventoryWeeklySummaries InventoryWeeklySummary[] @relation("InventoryWeeklySummaries")
   buildingInventoryItems BuildingInventoryItem[] @relation("BuildingInventoryItems")
@@ -776,6 +778,38 @@ model EconomyConfig {
   @@index([buildingRole, metricType, level])
 }
 
+// =========================
+// Platform fee config by SALES_COUNT level range (settlement commission/logistics/returns)
+// =========================
+model PlatformFeeLevelConfig {
+  id        String  @id @default(cuid())
+  levelMin  Int
+  levelMax  Int
+  commissionRate     Decimal @db.Decimal(5, 4)
+  logisticsMultiplier Decimal @db.Decimal(6, 4)
+  returnRateMin      Decimal @db.Decimal(6, 4)
+  returnRateMax      Decimal @db.Decimal(6, 4)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([levelMin, levelMax, isActive])
+  @@map("platform_fee_level_configs")
+}
+
+// =========================
+// Base shipping unit fee by ShippingProfile (settlement logistics)
+// =========================
+model ShippingProfileFeeConfig {
+  id            String         @id @default(cuid())
+  shippingProfile ShippingProfile @unique
+  baseUnitFeeUsd Decimal       @db.Decimal(12, 2)
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@map("shipping_profile_fee_configs")
+}
 
 // =========================
 // 3) StaffingRule (TRACK STAFF DELTA)
@@ -1126,10 +1160,6 @@ model ProductTemplate {
   // NEW: Style dimension (multi-tag)
   styleTags StyleTag[]
 
-  // NEW: Season score curve selection (admin bunu seçer)
-  seasonalityProfileId String?
-  seasonalityProfile   SeasonalityProfile? @relation(fields: [seasonalityProfileId], references: [id], onDelete: SetNull)
-
   // Base economics
   baseCost           Decimal @db.Decimal(12, 2)
   suggestedSalePrice Decimal @db.Decimal(12, 2)
@@ -1160,12 +1190,13 @@ model ProductTemplate {
   technicalSheet        TechnicalSheet?
   showcaseListings     ShowcaseListing[]
   dailyProductSalesLogs DailyProductSalesLog[]
-  wholesaleCatalogItems WholesaleCatalogItem[]
   wholesaleOrderLines   WholesaleOrderLine[]
   inventoryMovementsArchive InventoryMovementArchive[]
   inventoryWeeklySummaries InventoryWeeklySummary[]
   buildingInventoryItems BuildingInventoryItem[]
   inventoryMovements InventoryMovement[]
+  modaverseOrderItems ModaverseOrderItem[]
+  modaverseSettlementLines ModaverseSettlementLine[]
   designStudioItems DesignStudioItem[]
 
   createdAtIndexHelper Int?
@@ -1174,7 +1205,6 @@ model ProductTemplate {
   @@index([productSeason])
   @@index([thermalClass])
   @@index([shippingProfile])
-  @@index([seasonalityProfileId])
   @@index([seasonScenarioDefinitionId])
   @@index([isActive])
   @@map("product_templates")
@@ -1262,13 +1292,6 @@ model PlayerProduct {
   suggestedPriceOverride Decimal? @db.Decimal(12, 2)
 
   /**
-   * Seasonality overrides (optional)
-   * - If set, overrides template seasonality profile for this player's product.
-   */
-  seasonalityProfileOverrideId String?
-  seasonalityProfileOverride   SeasonalityProfile? @relation(fields: [seasonalityProfileOverrideId], references: [id], onDelete: SetNull)
-
-  /**
    * Product lifecycle (optional)
    * - First day this product was launched/listed by the player (dayKey UTC midnight).
    */
@@ -1290,6 +1313,7 @@ model PlayerProduct {
   dailyProductSalesLogs DailyProductSalesLog[]
   buildingInventoryItems BuildingInventoryItem[] @relation("InventoryPlayerProduct")
   inventoryMovements InventoryMovement[] @relation("MovementPlayerProduct")
+  modaverseOrderItems ModaverseOrderItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1298,7 +1322,6 @@ model PlayerProduct {
   @@index([companyId])
   @@index([productTemplateId])
   @@index([companyId, isUnlocked])
-  @@index([seasonalityProfileOverrideId])
   @@index([launchedAtDayKey])
   @@map("player_products")
 }
@@ -1331,75 +1354,6 @@ model PlayerProductImage {
   @@index([playerProductId, isUnlocked])
   @@index([productImageTemplateId])
   @@map("player_product_images")
-}
-model SeasonalityProfile {
-  id   String @id @default(cuid())
-  code String @unique @db.VarChar(40)  // WINTER_CORE, SUMMER_LATE...
-  name String @db.VarChar(80)
-
-  season ProductSeason
-
-  // skor sınırları (0..100)
-  peakCeil       Int @default(100)
-  inSeasonFloor  Int @default(0)   // sen "sezon dışı 0" diyorsun, floor'a ihtiyaç yok ama bırakıyorum
-  offSeasonFloor Int @default(0)   // sert kural: sezon dışı zaten 0
-
-  // eğri keskinliği (0..1 gibi düşünebilirsin, motor tarafı kullanır)
-  hardness Decimal @db.Decimal(4, 2) @default(0.80)
-
-  isActive Boolean @default(true)
-
-  keyframes          SeasonalityKeyframe[]
-  productTemplates   ProductTemplate[]
-  playerProducts     PlayerProduct[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([season])
-  @@index([isActive])
-  @@map("seasonality_profiles")
-}
-
-model SeasonalityKeyframe {
-  id String @id @default(cuid())
-
-  profileId String
-
-  // 1..365 (NORTH referans)
-  dayOfYear Int
-
-  // 0..100
-  score Int
-
-  profile SeasonalityProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@unique([profileId, dayOfYear])
-  @@index([dayOfYear])
-  @@map("seasonality_keyframes")
-}
-model SeasonWindowConfig {
-  id String @id @default(cuid())
-
-  hemisphere Hemisphere
-  season     ProductSeason
-
-  // 1..365 (NORTH referans)
-  startDayOfYear Int
-  endDayOfYear   Int
-
-  // ör: WINTER 258..74 gibi yıl sarıyorsa true
-  wrapsYear Boolean @default(false)
-
-  isActive Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([hemisphere, season])
-  @@index([season])
-  @@index([isActive])
-  @@map("season_window_configs")
 }
 
 model ShowcaseListing {
@@ -1527,6 +1481,19 @@ model MarketZonePriceIndex {
   @@index([isActive])
   @@map("market_zone_price_indexes")
 }
+
+model RarityConfig {
+  id               String   @id @default(cuid())
+  rarity           ProductRarity @unique
+  demandMultiplier Decimal  @db.Decimal(6, 3)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([isActive])
+  @@map("rarity_configs")
+}
+
 model ProductSalesBandConfig {
   id String @id @default(cuid())
 
@@ -1552,6 +1519,8 @@ model ProductSalesBandConfig {
   @@index([tierMin, tierMax])
   @@index([isActive])
   @@map("product_sales_band_configs")
+
+  @@unique([categoryL3Id, productQuality, tierMin, tierMax])
 }
 /**
  * CompanyLedgerEntry (append-only, USD ONLY)
@@ -1585,8 +1554,7 @@ model CompanyLedgerEntry {
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   // Relations from other models that reference this ledger entry
-  paymentObligations   PaymentObligation[]
-  modaverseSettlements ModaverseSettlement[]
+  paymentObligations PaymentObligation[]
 
   @@index([companyId, dayKey])
   @@index([companyId, category, dayKey])
@@ -1699,88 +1667,137 @@ model PlayerWalletTransaction {
 }
 
 /**
- * ModaverseSettlement
- * Settlement records for marketplace transactions
+ * ModaverseSettlement (V02)
+ * Settlement records per warehouse per period. Ledger linkage for traceability.
  */
 model ModaverseSettlement {
   id        String @id @default(cuid())
   companyId String
+  warehouseBuildingId String
 
-  dayKey    DateTime
-  amountUsd Decimal @db.Decimal(12, 2)
+  periodStartDayKey DateTime // UTC midnight
+  periodEndDayKey   DateTime // UTC midnight
+  payoutDayKey      DateTime // UTC midnight (5th or 20th)
 
-  ledgerEntryId String
-  ledgerEntry    CompanyLedgerEntry @relation(fields: [ledgerEntryId], references: [id], onDelete: Restrict)
+  lines ModaverseSettlementLine[]
 
   createdAt DateTime @default(now())
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company  Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouse CompanyBuilding @relation(fields: [warehouseBuildingId], references: [id], onDelete: Cascade)
 
-  @@index([companyId, dayKey])
-  @@index([ledgerEntryId])
+  @@unique([companyId, warehouseBuildingId, periodStartDayKey, periodEndDayKey])
+  @@index([companyId])
+  @@index([warehouseBuildingId])
   @@map("modaverse_settlements")
 }
 /**
- * ==================== WHOLESALE ====================
+ * ModaverseSettlementLine (V02)
+ * Line items for settlement records. Explicit snapshot/aggregate columns.
  */
+model ModaverseSettlementLine {
+  id String @id @default(cuid())
 
-model WholesaleSupplier {
-  id   String @id @default(cuid())
-  name String
+  settlementId      String
+  productTemplateId String
+  listingId         String?
 
-  // supplier hangi pazara hizmet ediyor
-  marketZoneId MarketZone
+  // Aggregated qty for the period (snapshot)
+  fulfilledQty Int @default(0)
 
-  // opsiyonel lokasyon
-  countryId String?
-  cityId    String?
+  // Snapshot pricing used for gross calc (do not change later)
+  salePriceUsd    Decimal @default(0) @db.Decimal(12, 2)
+  grossRevenueUsd Decimal @default(0) @db.Decimal(14, 2)
 
-  // Admin ürün eklerken wholesalePrice üretmek için random aralık
-  minPriceMultiplier Decimal @db.Decimal(6, 2)
-  maxPriceMultiplier Decimal @db.Decimal(6, 2)
+  // Tier/country snapshots (explicit V02)
+  tierSnapshot          String?  // e.g. tier code at payout
+  logisticsCountryFactor Decimal? @db.Decimal(5, 4)
 
-  isActive Boolean @default(true)
+  // Fee snapshots for this line
+  commissionRateSnapshot Decimal @db.Decimal(5, 4)
+  commissionFeeUsd       Decimal @default(0) @db.Decimal(14, 2)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  shippingProfileSnapshot ShippingProfile
+  logisticsUnitFeeUsd     Decimal         @default(0) @db.Decimal(12, 2) // per shipped unit after tier/country/min rules
+  logisticsFeeUsd         Decimal         @default(0) @db.Decimal(14, 2) // logisticsUnitFeeUsd * fulfilledQty
 
-  // Style ilişkisi (supplier hangi stile hizmet ediyor)
-  styleTag StyleTag
+  // Returns snapshot (simple model)
+  returnRateSnapshot Decimal @default(0) @db.Decimal(6, 4)
+  returnQty          Int     @default(0)
+  returnDeductionUsd Decimal @default(0) @db.Decimal(14, 2)
 
-  country Country? @relation(fields: [countryId], references: [id], onDelete: SetNull)
-  city    City?    @relation(fields: [cityId], references: [id], onDelete: SetNull)
-
-  catalogItems WholesaleCatalogItem[]
-  orders       WholesaleOrder[]
-
-  @@index([marketZoneId, isActive])
-  @@index([countryId])
-  @@index([cityId])
-  @@index([styleTag])
-  @@map("wholesale_suppliers")
-}
-
-model WholesaleCatalogItem {
-  id                  String @id @default(cuid())
-  wholesaleSupplierId String
-  productTemplateId   String
-
-  // supplier'a eklerken admin tarafında random multiplier ile hesaplanıp yazılır
-  wholesalePrice Decimal @db.Decimal(12, 2)
-
-  isActive Boolean @default(true)
+  netRevenueUsd Decimal @default(0) @db.Decimal(14, 2) // line-level net (payout to seller)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
-  supplier        WholesaleSupplier @relation(fields: [wholesaleSupplierId], references: [id], onDelete: Cascade)
-  productTemplate ProductTemplate   @relation(fields: [productTemplateId], references: [id], onDelete: Restrict)
+  settlement      ModaverseSettlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  productTemplate ProductTemplate     @relation(fields: [productTemplateId], references: [id], onDelete: Restrict)
 
-  @@unique([wholesaleSupplierId, productTemplateId])
+  @@unique([settlementId, productTemplateId])
+  @@index([settlementId])
   @@index([productTemplateId])
-  @@index([wholesaleSupplierId, isActive])
-  @@map("wholesale_catalog_items")
+  @@index([listingId])
+  @@map("modaverse_settlement_lines")
 }
+
+/**
+ * ModaverseOrder
+ * Daily marketplace order per warehouse (one per warehouse per dayKey). Idempotent per (warehouse, dayKey).
+ */
+model ModaverseOrder {
+  id        String @id @default(cuid())
+  companyId String
+  warehouseBuildingId String
+  dayKey    DateTime // UTC midnight
+
+  createdAt DateTime @default(now())
+
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouse CompanyBuilding @relation(fields: [warehouseBuildingId], references: [id], onDelete: Cascade)
+  items     ModaverseOrderItem[]
+
+  @@unique([warehouseBuildingId, dayKey])
+  @@index([companyId])
+  @@index([warehouseBuildingId, dayKey])
+  @@map("modaverse_orders")
+}
+
+/**
+ * ModaverseOrderItem
+ * Line item for a daily order. Stock is decremented at order creation (Step A); fulfillment (Step B) only updates qtyFulfilled/qtyShipped.
+ */
+model ModaverseOrderItem {
+  id                String @id @default(cuid())
+  orderId           String
+  productTemplateId String
+  playerProductId   String?
+  listingId         String?
+
+  qtyOrdered   Int
+  qtyFulfilled Int @default(0)
+  qtyShipped   Int @default(0)
+
+  sortIndex Int @default(0) // FIFO fulfillment: order by order.dayKey asc, sortIndex asc
+
+  salePriceUsd Decimal? @db.Decimal(12, 2) // snapshot at order time
+
+  createdAt DateTime @default(now())
+
+  order           ModaverseOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productTemplate ProductTemplate  @relation(fields: [productTemplateId], references: [id], onDelete: Restrict)
+  playerProduct   PlayerProduct?   @relation(fields: [playerProductId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([orderId, sortIndex])
+  @@index([productTemplateId])
+  @@index([playerProductId])
+  @@index([listingId])
+  @@map("modaverse_order_items")
+}
+
+/**
+ * ==================== WHOLESALE (Fast supply via DesignStudio) ====================
+ */
 
 model WholesaleOrder {
   id        String @id @default(cuid())
@@ -1793,7 +1810,8 @@ model WholesaleOrder {
    */
   warehouseBuildingId String
 
-  supplierId String
+  /// DesignStudio as supplier for fast supply; unit cost = ProductTemplate.baseCost * DesignStudio.fastSupplyMultiplier
+  studioId String
 
   status WholesaleOrderStatus @default(DRAFT)
 
@@ -1809,15 +1827,15 @@ model WholesaleOrder {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  company   Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  warehouse CompanyBuilding   @relation(fields: [warehouseBuildingId], references: [id], onDelete: Cascade)
-  supplier  WholesaleSupplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouse CompanyBuilding @relation(fields: [warehouseBuildingId], references: [id], onDelete: Cascade)
+  studio    DesignStudio    @relation(fields: [studioId], references: [id], onDelete: Restrict)
 
   lines WholesaleOrderLine[]
 
   @@index([companyId, status])
   @@index([warehouseBuildingId, status])
-  @@index([supplierId])
+  @@index([studioId])
   @@map("wholesale_orders")
 }
 
@@ -1996,7 +2014,11 @@ model DesignStudio {
   coverImageUrl String?
   sortOrder     Int           @default(0)
 
+  /// Fast supply unit cost = ProductTemplate.baseCost * fastSupplyMultiplier (per studio)
+  fastSupplyMultiplier Decimal @default(1.0) @db.Decimal(6, 3)
+
   items         DesignStudioItem[]
+  orders        WholesaleOrder[]
 
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt

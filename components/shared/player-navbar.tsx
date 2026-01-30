@@ -6,6 +6,7 @@ import { Settings, DollarSign, Coins, Gem, Menu, Clock } from 'lucide-react';
 import PlayerSettings from './player-settings';
 import PlayerSidebar from './player-sidebar';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import AdvanceDayPanel from './advance-day-panel';
 
 interface PlayerNavbarProps {
   user?: {
@@ -163,10 +164,7 @@ export default function PlayerNavbar({ user: propUser }: PlayerNavbarProps) {
               Game Simulation
             </SheetTitle>
           </SheetHeader>
-          {/* Placeholder for AdvanceDayPanel if available */}
-          <div className="text-sm text-muted-foreground">
-            Game simulation panel will be added here.
-          </div>
+          <AdvanceDayPanel open={clockPanelOpen} />
         </SheetContent>
       </Sheet>
     </>

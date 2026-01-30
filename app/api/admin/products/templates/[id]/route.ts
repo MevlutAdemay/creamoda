@@ -27,7 +27,6 @@ export async function PATCH(
       styleTags,
       productSeason,
       thermalClass,
-      seasonalityProfileId,
       seasonScenarioDefinitionId,
       baseCost,
       suggestedSalePrice,
@@ -62,7 +61,6 @@ export async function PATCH(
     if (styleTags !== undefined) updateData.styleTags = styleTags;
     if (productSeason !== undefined) updateData.productSeason = productSeason;
     if (thermalClass !== undefined) updateData.thermalClass = thermalClass;
-    if (seasonalityProfileId !== undefined) updateData.seasonalityProfileId = seasonalityProfileId || null;
     if (seasonScenarioDefinitionId !== undefined) updateData.seasonScenarioDefinitionId = seasonScenarioDefinitionId || null;
     if (baseCost !== undefined) updateData.baseCost = new Decimal(baseCost);
     if (suggestedSalePrice !== undefined) updateData.suggestedSalePrice = new Decimal(suggestedSalePrice);
@@ -114,14 +112,6 @@ export async function PATCH(
           select: {
             id: true,
             name: true,
-          },
-        },
-        seasonalityProfile: {
-          select: {
-            id: true,
-            code: true,
-            name: true,
-            season: true,
           },
         },
         seasonScenarioDefinition: {

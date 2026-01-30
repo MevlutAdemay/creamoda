@@ -55,7 +55,6 @@ export default async function DesignOfficesPage({ searchParams }: PageProps) {
   }
 
   // Fetch studios with filters and aggregations
-  // Using include since shortPitch may not be in generated types yet
   const studiosRaw = await prisma.designStudio.findMany({
     where,
     include: {

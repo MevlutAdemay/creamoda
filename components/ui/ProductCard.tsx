@@ -17,6 +17,10 @@ import {
   Cpu,
   Coins,
   Gem,
+  BarChart3,
+  ShoppingCartIcon,
+  MousePointerClickIcon,
+  FileSearch,
 } from 'lucide-react';
 import ProductImageCarousel from './ProductImageCarousel';
 import type { Product } from '../../types';
@@ -43,6 +47,8 @@ type ProductCardProps = {
   price?: number;
   playerXp?: number;
   playerDiamonds?: number;
+  /** Wholesale (fast supply) unit price: baseCost * studio.fastSupplyMultiplier. When set, Price section shows Wholesale Price + add-to-cart button. */
+  wholesalePrice?: number | null;
   onAddToCart?: (p: Product) => void;
   /** Called after successful add-to-collection (e.g. to refresh wallet). */
   onAddedToCollection?: (balanceXp: number, balanceDiamond: number) => void;
@@ -56,6 +62,7 @@ export default function ProductCard({
   companyId,
   playerXp = 0,
   playerDiamonds = 0,
+  wholesalePrice: wholesalePriceProp,
   onAddToCart,
   onAddedToCollection,
 }: ProductCardProps) {
@@ -85,6 +92,7 @@ export default function ProductCard({
   // Pricing data from product
   const baseCost = (product as any).baseCost as number | null | undefined;
   const suggestedSalePrice = (product as any).suggestedSalePrice as number | null | undefined;
+  const wholesalePrice = wholesalePriceProp ?? (product as any).wholesalePrice as number | null | undefined;
   const warehouses = (product as any).warehouses as Array<{
     country: {
       id: string;
@@ -384,7 +392,7 @@ export default function ProductCard({
                               <div className="text-sm font-semibold text-white/90">Price</div>
                               
                               {/* Production Cost */}
-                              <div className="space-y-2 flex flex-row justify-between">
+                              <div className="space-y-2 flex flex-row justif-start gap-6">
                                 <div className="text-xs font-medium text-white/80">Production Cost</div>
                                 <div className="text-xs text-white/90 font-medium">
                                   {baseCost !== null && baseCost !== undefined
@@ -393,10 +401,39 @@ export default function ProductCard({
                                 </div>
                               </div>
 
+                              {/* Wholesale Price (Fast Supply) */}
+                              {wholesalePrice != null && typeof wholesalePrice === 'number' && (
+                                <div className="space-y-2 flex flex-row justify-between items-center gap-2 pt-2 border-t border-white/10">
+                                  <div className="text-xs font-medium text-white/80 align-middle justify-center">
+                                  <span className="text-white/70 text-[12px]">Wholesale Price</span><br />
+                                  <span className="text-white/70 text-[9px]">Fast Supply</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-xs text-white/90 font-medium">
+                                      €{wholesalePrice.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                    </div>
+                                  <div>
+                                    {onAddToCart && (
+                                      <Button
+                                        type="button"
+                                        onClick={() => onAddToCart(product)}                                        
+                                        aria-label="Add to fast supply cart"
+                                        variant="default"
+                                        size="icon"
+                                        className="rounded-lg cursor-pointer"
+                                      >
+                                        <ShoppingCartIcon className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
                               {/* Suggested Price by Warehouse */}
                               {warehouses && warehouses.length > 0 && suggestedSalePrice !== null && suggestedSalePrice !== undefined ? (
                                 <div className="space-y-2 pt-2 border-t border-white/10">
-                                  <div className="text-xs font-medium text-white/80">Suggested Price</div>
+                                  <div className="text-xs font-medium text-white/80">Suggested SALE Price</div>
                                   <div className="space-y-2">
                                     {warehouses.map((warehouse, idx) => {
                                       if (!warehouse.country) return null;
@@ -614,19 +651,12 @@ export default function ProductCard({
 
                 <Button
                   onClick={toggleInspect}
-                  variant="default"
-                  size="sm"
+                  variant="outline"
+                  size="icon"
                   aria-label={isInspectOpen ? 'Close inspect panel' : 'Inspect product'}
-                  className="shrink-0 text-[11px] px-3 py-1.5 relative transition-all duration-300 hover:bg-white/20 hover:border-white/35 hover:shadow-[0_6px_20px_0_rgba(31,38,135,0.3)] text-gray-700 dark:text-gray-200 font-medium"
-                  style={{
-                    background: 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.08) 100%)',
-                    backdropFilter: 'blur(8px) saturate(180%)',
-                    WebkitBackdropFilter: 'blur(8px) saturate(180%)',
-                    boxShadow: '0 4px 16px 0 rgba(31,38,135,0.2)',
-                    cursor: 'pointer',
-                  }}
+                  className="rounded-lg cursor-pointer"
                 >
-                  {isInspectOpen ? <X className="w-4 h-4" /> : <ScanEye className="w-4 h-4" />}
+                  {isInspectOpen ? <X className="w-6 h-6" /> : <FileSearch className="w-6 h-6" />}
                 </Button>
               </div>
             </div>

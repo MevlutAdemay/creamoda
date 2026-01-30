@@ -48,14 +48,6 @@ export async function GET(request: NextRequest) {
               name: true,
             },
           },
-          seasonalityProfile: {
-            select: {
-              id: true,
-              code: true,
-              name: true,
-              season: true,
-            },
-          },
           seasonScenarioDefinition: {
             select: {
               id: true,
@@ -106,7 +98,6 @@ export async function POST(request: NextRequest) {
       styleTags = [],
       productSeason,
       thermalClass,
-      seasonalityProfileId,
       baseCost,
       suggestedSalePrice,
       productQuality,
@@ -179,7 +170,6 @@ export async function POST(request: NextRequest) {
         styleTags: styleTags || [],
         productSeason,
         thermalClass,
-        seasonalityProfileId: seasonalityProfileId || null,
         seasonScenarioDefinitionId: seasonScenarioDefinitionId || null,
         baseCost: new Decimal(baseCost),
         suggestedSalePrice: new Decimal(suggestedSalePrice),
@@ -203,14 +193,6 @@ export async function POST(request: NextRequest) {
           select: {
             id: true,
             name: true,
-          },
-        },
-        seasonalityProfile: {
-          select: {
-            id: true,
-            code: true,
-            name: true,
-            season: true,
           },
         },
         seasonScenarioDefinition: {

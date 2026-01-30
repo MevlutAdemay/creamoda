@@ -15,7 +15,11 @@
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset",
     "db:seed": "tsx prisma/seed.ts",
-    "db:seed:scenarios": "tsx prisma/seed-scenarios-only.ts"
+    "db:seed:scenarios": "tsx prisma/seed-scenarios-only.ts",
+    "seed:finance-schedule": "tsx scripts/seed-finance-schedule-config.ts",
+    "seed:platform-fees": "tsx scripts/seed-platform-fees.ts",
+    "seed:market-zone-and-rarity": "tsx scripts/seed-market-zone-and-rarity.ts",
+    "seed:product-sales-band": "tsx scripts/seed-product-sales-band-config.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

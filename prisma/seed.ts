@@ -2,7 +2,6 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { seedSizeProfiles } from './seed/size-profiles.seed';
-import { seedSeasonality } from './seed/seasonality.seed';
 import { seedMarketZoneSeasonScenarios } from './seed/market-zone-season-scenarios.seed';
 
 const prisma = new PrismaClient();
@@ -147,10 +146,7 @@ async function main() {
     // ==================== 0) SIZE PROFILES (must be before categories/templates) ====================
     await seedSizeProfiles(prisma);
 
-    // ==================== 1) SEASONALITY (must be before categories/templates) ====================
-    await seedSeasonality(prisma);
-
-    // ==================== 2) MARKET ZONE SEASON SCENARIOS (Excel; before ProductTemplates) ====================
+    // ==================== 1) MARKET ZONE SEASON SCENARIOS (Excel; before ProductTemplates) ====================
     console.log('📦 Seeding MarketZoneSeasonScenario from Excel...');
     await seedMarketZoneSeasonScenarios(prisma);
 
@@ -516,7 +512,6 @@ async function main() {
     console.log('✅ Seed completed successfully!');
     console.log('\nSummary:');
     console.log(`  - Size Profiles: Seeded`);
-    console.log(`  - Seasonality: Seeded`);
     console.log(`  - Countries: ${countryCount}`);
     console.log(`  - Regions: ${regionCount}`);
     console.log(`  - Cities: ${cityCount}`);

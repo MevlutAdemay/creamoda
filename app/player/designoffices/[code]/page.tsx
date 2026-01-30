@@ -2,8 +2,11 @@
 
 import { notFound } from 'next/navigation';
 import prisma from '@/lib/prisma';
-import ProductCard from '@/components/ui/ProductCard';
 import { Badge } from '@/components/ui/badge';
+import {
+  StudioFastSupplyClient,
+  StudioFastSupplyGrid,
+} from '@/components/player/designoffices/StudioFastSupplyClient';
 import { VerifiedBadge } from '@/components/player/designoffices/VerifiedBadge';
 import { OfficialWebsiteLink } from '@/components/player/designoffices/OfficialWebsiteLink';
 import { getServerSession } from '@/lib/auth/get-session';
@@ -69,6 +72,35 @@ type WarehouseInfo = {
   } | null;
 };
 
+// Studio detail shape returned by findUnique with items + fastSupplyMultiplier
+type StudioDetail = {
+  id: string;
+  code: string;
+  title: string;
+  description: string | null;
+  shortPitch: string | null;
+  productSeason: ProductSeason;
+  styleTag: StyleTag;
+  quality: ProductQuality;
+  audience: string | null;
+  studioType: string;
+  externalWebsiteUrl: string | null;
+  fastSupplyMultiplier?: { toNumber?: () => number } | number | null;
+  items: Array<{
+    productTemplate: {
+      id: string;
+      code: string;
+      name: string;
+      description: string | null;
+      baseCost: unknown;
+      suggestedSalePrice: unknown;
+      unlockCostXp: number | null;
+      unlockCostDiamond: number | null;
+      productImageTemplates: Array<{ url: string; alt: string | null; slot: string }>;
+    };
+  }>;
+};
+
 // Product type matching ProductCard expectations
 type Product = {
   id: string;
@@ -125,60 +157,74 @@ export default async function DesignStudioDetailPage({ params }: PageProps) {
     }
   }
 
-  // Fetch studio with items and product templates including images and unlock costs
-  const studio = await prisma.designStudio.findUnique({
-    where: { code },
-    select: {
-      id: true,
-      code: true,
-      title: true,
-      description: true,
-      shortPitch: true,
-      productSeason: true,
-      styleTag: true,
-      quality: true,
-      audience: true,
-      studioType: true,
-      externalWebsiteUrl: true,
-      items: {
-        orderBy: [
-          { sortOrder: 'asc' },
-          { createdAt: 'asc' },
-        ],
-        include: {
-          productTemplate: {
-            select: {
-              id: true,
-              code: true,
-              name: true,
-              description: true,
-              baseCost: true,
-              suggestedSalePrice: true,
-              unlockCostXp: true,
-              unlockCostDiamond: true,
-              productImageTemplates: {
-                orderBy: [
-                  { sortOrder: 'asc' },
-                  { createdAt: 'asc' },
-                ],
-                select: {
-                  url: true,
-                  alt: true,
+  // Fetch studio with items and product templates; fetch fastSupplyMultiplier separately for type safety
+  const [studioBase, studioMultiplier] = await Promise.all([
+    prisma.designStudio.findUnique({
+      where: { code },
+      select: {
+        id: true,
+        code: true,
+        title: true,
+        description: true,
+        shortPitch: true,
+        productSeason: true,
+        styleTag: true,
+        quality: true,
+        audience: true,
+        studioType: true,
+        externalWebsiteUrl: true,
+        items: {
+          orderBy: [
+            { sortOrder: 'asc' },
+            { createdAt: 'asc' },
+          ],
+          include: {
+            productTemplate: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                description: true,
+                baseCost: true,
+                suggestedSalePrice: true,
+                unlockCostXp: true,
+                unlockCostDiamond: true,
+                productImageTemplates: {
+                  orderBy: [
+                    { sortOrder: 'asc' },
+                    { createdAt: 'asc' },
+                  ],
+                  select: {
+                    url: true,
+                    alt: true,
+                    slot: true,
+                  },
                 },
               },
             },
           },
         },
       },
-    },
-  });
+    }),
+    (prisma as { designStudio: { findUnique: (args: unknown) => Promise<{ fastSupplyMultiplier?: unknown } | null> } }).designStudio.findUnique({
+      where: { code },
+      select: { fastSupplyMultiplier: true },
+    }),
+  ]);
 
-  if (!studio) {
+  if (!studioBase) {
     notFound();
   }
 
+  const studioDetail: StudioDetail = {
+    ...studioBase,
+    items: studioBase.items,
+    fastSupplyMultiplier: studioMultiplier?.fastSupplyMultiplier ?? null,
+  };
+  const studio = studioDetail;
+
   // One query: PlayerProduct for this company and all product templates in this studio
-  const productTemplateIds = studio.items.map((item) => item.productTemplate.id);
+  const productTemplateIds = studioDetail.items.map((item: StudioDetail['items'][number]) => item.productTemplate.id);
   const inCollectionMap = new Map<string, { isUnlocked: boolean }>();
   if (companyId && productTemplateIds.length > 0) {
     const playerProducts = await prisma.playerProduct.findMany({
@@ -193,46 +239,54 @@ export default async function DesignStudioDetailPage({ params }: PageProps) {
     }
   }
 
-  // Fetch warehouses for pricing (reuse companyId)
+  // Fetch warehouses for pricing (ProductCard) and for fast supply dropdown (minimal list)
   let warehouses: WarehouseInfo[] = [];
+  let fastSupplyWarehouses: { id: string; name: string | null; countryId: string }[] = [];
   if (companyId) {
     const warehouseBuildings = await prisma.companyBuilding.findMany({
-        where: {
-          companyId,
-          role: BuildingRole.WAREHOUSE,
-        },
-        include: {
-          country: {
-            select: {
-              id: true,
-              name: true,
-              iso2: true,
-              priceMultiplier: true,
-            },
+      where: {
+        companyId,
+        role: BuildingRole.WAREHOUSE,
+      },
+      include: {
+        country: {
+          select: {
+            id: true,
+            name: true,
+            iso2: true,
+            priceMultiplier: true,
           },
         },
-        orderBy: { name: 'asc' },
-      });
+      },
+      orderBy: { name: 'asc' },
+    });
 
-      warehouses = warehouseBuildings.map((wb) => {
-        const country = wb.country;
-        return {
-          country: country
-            ? {
-                id: country.id,
-                name: country.name,
-                iso2: country.iso2,
-                priceMultiplier: Number(country.priceMultiplier),
-              }
-            : null,
-        };
-      });
+    warehouses = warehouseBuildings.map((wb) => {
+      const country = wb.country;
+      return {
+        country: country
+          ? {
+              id: country.id,
+              name: country.name,
+              iso2: country.iso2,
+              priceMultiplier: Number(country.priceMultiplier),
+            }
+          : null,
+      };
+    });
+    fastSupplyWarehouses = warehouseBuildings.map((wb) => ({
+      id: wb.id,
+      name: wb.name ?? null,
+      countryId: wb.countryId,
+    }));
   }
 
   // Map DesignStudioItem.productTemplate to Product format (with collection state)
-  const products: Product[] = studio.items.map((item) => {
+  const products: Product[] = studioDetail.items.map((item: StudioDetail['items'][number]) => {
     const template = item.productTemplate;
-    const images = template.productImageTemplates.map((img) => img.url);
+    const images = template.productImageTemplates.map((img: { url: string; alt: string | null; slot: string }) => img.url);
+    const mainImage = template.productImageTemplates.find((img: { url: string; alt: string | null; slot: string }) => img.slot === 'MAIN');
+    const mainImageUrl = mainImage?.url ?? images[0];
     const inCollection = inCollectionMap.get(template.id);
 
     // Convert Decimal to number
@@ -247,7 +301,7 @@ export default async function DesignStudioDetailPage({ params }: PageProps) {
       price: suggestedSalePrice ?? undefined,
       description: template.description || undefined,
       imageUrls: images.length > 0 ? images : undefined,
-      imageUrl: images.length === 1 ? images[0] : undefined,
+      imageUrl: mainImageUrl ?? (images.length === 1 ? images[0] : undefined),
       unlockCostXp: template.unlockCostXp ?? null,
       unlockCostDiamond: template.unlockCostDiamond ?? null,
       baseCost,
@@ -258,70 +312,74 @@ export default async function DesignStudioDetailPage({ params }: PageProps) {
     };
   });
 
+  const fastSupplyMultiplier =
+    studioDetail.fastSupplyMultiplier != null ? Number(studioDetail.fastSupplyMultiplier) : 1.0;
+
   return (
-    <div className="relative min-h-screen bg-transparent">
-      <div className="container mx-auto p-8">
-        {/* Studio Header */}
-        <div className="mb-8">
-          {/* Title with Verified Badge */}
-          <div className="flex items-center gap-3 flex-wrap mb-4">
-            <h1 className="text-4xl font-bold">{studio.title}</h1>
-            {studio.studioType === 'REAL' && <VerifiedBadge />}
-          </div>
-          
-          {/* Official Website Link */}
-          {studio.studioType === 'REAL' && studio.externalWebsiteUrl && (
-            <OfficialWebsiteLink url={studio.externalWebsiteUrl} />
-          )}
-          
-          {/* Badges */}
-          <div className="flex flex-wrap gap-2 mb-4 mt-4">
-            <Badge variant="secondary" className="text-xs">
-              {humanizeStyleTag(studio.styleTag)}
-            </Badge>
-            <Badge variant="secondary" className="text-xs">
-              {humanizeQuality(studio.quality)}
-            </Badge>
-            <Badge variant="secondary" className="text-xs">
-              {humanizeSeason(studio.productSeason)}
-            </Badge>
-            {studio.audience && (
+    <StudioFastSupplyClient
+      studioId={studio.id}
+      fastSupplyMultiplier={fastSupplyMultiplier}
+      warehouses={fastSupplyWarehouses}
+      companyId={companyId}
+    >
+      <div className="relative min-h-screen bg-transparent">
+        <div className="container mx-auto p-8">
+          {/* Studio Header */}
+          <div className="mb-8">
+            {/* Title with Verified Badge */}
+            <div className="flex items-center gap-3 flex-wrap mb-4">
+              <h1 className="text-4xl font-bold">{studio.title}</h1>
+              {studio.studioType === 'REAL' && <VerifiedBadge />}
+            </div>
+            
+            {/* Official Website Link */}
+            {studio.studioType === 'REAL' && studio.externalWebsiteUrl && (
+              <OfficialWebsiteLink url={studio.externalWebsiteUrl} />
+            )}
+            
+            {/* Badges */}
+            <div className="flex flex-wrap gap-2 mb-4 mt-4">
               <Badge variant="secondary" className="text-xs">
-                {humanizeAudience(studio.audience)}
+                {humanizeStyleTag(studio.styleTag)}
               </Badge>
+              <Badge variant="secondary" className="text-xs">
+                {humanizeQuality(studio.quality)}
+              </Badge>
+              <Badge variant="secondary" className="text-xs">
+                {humanizeSeason(studio.productSeason)}
+              </Badge>
+              {studio.audience && (
+                <Badge variant="secondary" className="text-xs">
+                  {humanizeAudience(studio.audience)}
+                </Badge>
+              )}
+            </div>
+
+            {/* Description */}
+            {(studio.shortPitch || studio.description) && (
+              <p className="text-muted-foreground max-w-3xl">
+                {studio.shortPitch || studio.description}
+              </p>
             )}
           </div>
 
-          {/* Description */}
-          {(studio.shortPitch || studio.description) && (
-            <p className="text-muted-foreground max-w-3xl">
-              {studio.shortPitch || studio.description}
-            </p>
+          {/* Products Grid (with fast supply cart when warehouse available) */}
+          {products.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">
+                No products available in this studio yet.
+              </p>
+            </div>
+          ) : (
+            <StudioFastSupplyGrid
+              products={products}
+              companyId={companyId}
+              playerXp={playerXp}
+              playerDiamonds={playerDiamonds}
+            />
           )}
         </div>
-
-        {/* Products Grid */}
-        {products.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">
-              No products available in this studio yet.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
-            {products.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                templateId={product.id}
-                companyId={companyId ?? undefined}
-                playerXp={playerXp}
-                playerDiamonds={playerDiamonds}
-              />
-            ))}
-          </div>
-        )}
       </div>
-    </div>
+    </StudioFastSupplyClient>
   );
 }
