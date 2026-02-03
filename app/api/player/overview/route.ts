@@ -75,7 +75,6 @@ export async function GET() {
         monthlySalaryFinal: true,
         hiredAt: true,
         buildingId: true,
-        // @ts-expect-error - Prisma types are stale, country relation exists in schema
         building: {
           select: {
             id: true,
