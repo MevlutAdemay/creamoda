@@ -11,6 +11,9 @@ const INITIAL_BALANCE_XP = 15000;
 const INITIAL_BALANCE_DIAMOND = 7500;
 
 function getOrigin(request: Request): string {
+  if (process.env.AUTH_ORIGIN) {
+    return process.env.AUTH_ORIGIN.replace(/\/$/, '');
+  }
   const url = new URL(request.url);
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}`;

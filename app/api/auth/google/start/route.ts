@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 
 function getOrigin(request: Request): string {
+  // Google Console'da tek redirect URI kullanmak için: Production URL sabit olmalı.
+  // Preview (PR) deployment'lar da aynı redirect_uri'yi kullanır; giriş sonrası production'a yönlenir.
+  if (process.env.AUTH_ORIGIN) {
+    return process.env.AUTH_ORIGIN.replace(/\/$/, '');
+  }
   const url = new URL(request.url);
-  // Vercel'de redirect_uri'nin her zaman public URL ile eşleşmesi için
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}`;
   }

@@ -25,7 +25,9 @@ Google, redirect URI’yi **tam olarak** eşleştirir. `http` / `https`, sonunda
 2. Şunların **Production** (ve istersen Preview) için tanımlı olduğundan emin ol:
    - `GOOGLE_CLIENT_ID` = Google Console’daki Client ID
    - `GOOGLE_CLIENT_SECRET` = Google Console’daki Client secret
-3. Değişken eklediysen veya değiştirdiysen **Redeploy** yap (Deployments → Redeploy).
+   - **`AUTH_ORIGIN`** = `https://creamoda.vercel.app` (sonunda `/` olmasın)
+3. **Neden AUTH_ORIGIN?** Preview/PR deployment'lar farklı URL kullanır; `AUTH_ORIGIN` ile OAuth her zaman production URL'sine yönlenir.
+4. Değişken eklediysen veya değiştirdiysen **Redeploy** yap (Deployments → Redeploy).
 
 ---
 
@@ -37,4 +39,4 @@ Google, redirect URI’yi **tam olarak** eşleştirir. `http` / `https`, sonunda
 
 Bu adımlardan sonra `https://creamoda.vercel.app/api/auth/google/start` üzerinden akış çalışmalıdır.
 
-**Not:** Projede `origin` Vercel’de `VERCEL_URL` ile sabitleniyor (Vercel bu değişkeni otomatik verir). Böylece redirect URI her zaman `https://creamoda.vercel.app/api/auth/google/callback` olur ve Google ile eşleşme garanti altına alınır.
+**Not:** Projede `origin` Vercel’de `VERCEL_URL` ile sabitleniyor (Vercel bu değişkeni otomatik verir). Böylece `AUTH_ORIGIN` tanımlıysa OAuth hep bu origin kullanır; Production ve Preview tek URI ile çalışır.
