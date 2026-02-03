@@ -10,9 +10,17 @@ const INITIAL_BALANCE_USD = 2168367;
 const INITIAL_BALANCE_XP = 15000;
 const INITIAL_BALANCE_DIAMOND = 7500;
 
+function getOrigin(request: Request): string {
+  const url = new URL(request.url);
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  return `${url.protocol}//${url.host}`;
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const origin = `${url.protocol}//${url.host}`;
+  const origin = getOrigin(request);
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
 

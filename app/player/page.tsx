@@ -550,7 +550,7 @@ export default function PlayerPage() {
                                     {member.building.country?.iso2 ? (
                                       <div className="relative w-4 h-4 shrink-0">
                                         <Image
-                                          src={`/flags/${member.building.country.iso2.toUpperCase()}.svg`}
+                                          src={`/flags/${member.building.country.iso2.toLowerCase()}.svg`}
                                           alt={member.building.country.iso2}
                                           fill
                                           className="object-contain rounded-sm"

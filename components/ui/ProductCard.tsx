@@ -456,7 +456,7 @@ export default function ProductCard({
                                         <div key={idx} className="flex items-center justify-between text-xs">
                                           <div className="flex items-center gap-2">
                                             <Image
-                                              src={`/flags/${warehouse.country.iso2}.svg`}
+                                              src={`/flags/${warehouse.country.iso2.toLowerCase()}.svg`}
                                               alt={warehouse.country.name}
                                               width={16}
                                               height={12}

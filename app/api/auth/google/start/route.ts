@@ -1,8 +1,16 @@
 import { NextResponse } from 'next/server';
 
-export async function GET(request: Request) {
+function getOrigin(request: Request): string {
   const url = new URL(request.url);
-  const origin = `${url.protocol}//${url.host}`;
+  // Vercel'de redirect_uri'nin her zaman public URL ile eşleşmesi için
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  return `${url.protocol}//${url.host}`;
+}
+
+export async function GET(request: Request) {
+  const origin = getOrigin(request);
 
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const redirectUri = `${origin}/api/auth/google/callback`;
