@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from '@/lib/auth/get-session';
 import type { Prisma, MarketZone, StyleTag } from '@prisma/client';
 
+
 type UpdateSupplierBody = {
   name?: string;
   marketZoneId?: MarketZone;
@@ -29,7 +30,7 @@ export async function PATCH(req: Request, { params }: Params) {
     const body = (await req.json()) as UpdateSupplierBody;
 
     // Check if supplier exists
-    const current = await prisma.wholesaleSupplier.findUnique({
+    const current = await (prisma as any).wholesaleSupplier.findUnique({
       where: { id },
     });
 
@@ -83,7 +84,7 @@ export async function PATCH(req: Request, { params }: Params) {
       );
     }
 
-    const data: Prisma.WholesaleSupplierUpdateInput = {};
+    const data: Record<string, unknown> = {};
     if (body.name !== undefined) data.name = body.name;
     if (body.marketZoneId !== undefined) data.marketZoneId = body.marketZoneId;
     if (body.styleTag !== undefined) data.styleTag = body.styleTag;
@@ -103,7 +104,7 @@ export async function PATCH(req: Request, { params }: Params) {
     }
     if (body.isActive !== undefined) data.isActive = body.isActive;
 
-    const updated = await prisma.wholesaleSupplier.update({
+    const updated = await (prisma as any).wholesaleSupplier.update({
       where: { id },
       data,
       include: {
@@ -148,14 +149,11 @@ export async function DELETE(_req: Request, { params }: Params) {
     const { id } = await params;
     
     // Check if supplier exists
-    const supplier = await prisma.wholesaleSupplier.findUnique({
+    const supplier = await (prisma as any).wholesaleSupplier.findUnique({
       where: { id },
       include: {
         _count: {
-          select: {
-            catalogItems: true,
-            orders: true,
-          },
+          select: { catalogItems: true },
         },
       },
     });
@@ -167,16 +165,8 @@ export async function DELETE(_req: Request, { params }: Params) {
       );
     }
 
-    // Check if supplier has related records (onDelete: Cascade for catalogItems, Restrict for orders)
-    if (supplier._count.orders > 0) {
-      return NextResponse.json(
-        { ok: false, error: 'Cannot delete supplier with existing orders' },
-        { status: 400 }
-      );
-    }
-
     // Catalog items will be deleted automatically (Cascade)
-    await prisma.wholesaleSupplier.delete({ where: { id } });
+    await (prisma as any).wholesaleSupplier.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to delete supplier';
