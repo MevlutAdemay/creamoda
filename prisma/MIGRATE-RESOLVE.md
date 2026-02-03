@@ -59,3 +59,62 @@ Then redeploy. `prisma migrate deploy` will re-run this migration and the next o
 - **Neon:** Dashboard → your project → Connection string (with pooler if you use it)
 
 Run the command from your machine (or a one-off script) with this URL; do not commit it.
+
+---
+
+## P3008: "Migration is already recorded as applied"
+
+If you see:
+
+```
+Error: P3008
+The migration `...` is already recorded as applied in the database.
+```
+
+Bu hata, o migration'ın zaten veritabanında **applied** olarak işaretli olduğu anlamına gelir. Tekrar `resolve --applied` çalıştırmana gerek yok; sorun çözülmüş demektir.
+
+**Bekleyen yeni migration'ları uygulamak için** (ör. wholesale_supplier_and_catalog):
+
+```bash
+# Production DATABASE_URL ile
+npx prisma migrate deploy
+```
+
+`migrate deploy` sadece henüz uygulanmamış migration'ları çalıştırır; zaten applied olanlara dokunmaz.
+
+---
+
+## Yeni migration failed oldu (P3009, örn. wholesale_supplier_and_catalog)
+
+1. Failed state'i kaldır (migration'ı "rolled back" say, böylece tekrar denenecek):
+
+```bash
+npx prisma migrate resolve --rolled-back "20260129220000_wholesale_supplier_and_catalog"
+```
+
+2. Sonra tekrar deploy et:
+
+```bash
+npx prisma migrate deploy
+```
+
+Migration SQL'i idempotent (IF NOT EXISTS) yapıldıysa, tablolar kısmen oluşmuş olsa bile tekrar çalıştırma güvenlidir.
+
+---
+
+## P3015: "Could not find the migration file at migration.sql"
+
+Bu hata, Prisma’nın bir migration klasöründe `migration.sql` dosyasını bulamadığı anlamına gelir.
+
+**Kontrol et:**
+1. Komutu **proje kökünden** (örn. `C:\V01modaverse\creamoda`) çalıştırıyorsun:
+   ```bash
+   cd C:\V01modaverse\creamoda
+   npx prisma migrate deploy
+   ```
+2. Her migration klasöründe `migration.sql` var mı?
+   ```bash
+   dir prisma\migrations\20260129220000_wholesale_supplier_and_catalog
+   ```
+   Çıktıda `migration.sql` görünmeli.
+3. "6 migrations found" ama diskte 4 klasör varsa: veritabanındaki `_prisma_migrations` tablosunda eski/yanlış kayıt olabilir. Eksik klasörü silmeyin. sadece ilgili migration’ın dosyasının `prisma/migrations/<isim>/migration.sql` yolunda olduğundan emin olun.
