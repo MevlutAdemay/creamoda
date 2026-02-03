@@ -1,13 +1,12 @@
+// components/player/designoffices/OfficeCard.tsx
+
 'use client';
 
-import { useState } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
-import { ChevronDown, Plus } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { AnimatePresence, motion } from 'framer-motion';
 import type { StyleTag, ProductQuality, ProductSeason } from '@prisma/client';
+import Image from 'next/image';
 
 function humanizeStyleTag(value: StyleTag): string {
   const map: Record<StyleTag, string> = {
@@ -30,7 +29,22 @@ function humanizeQuality(value: ProductQuality): string {
 }
 
 function humanizeSeason(value: ProductSeason): string {
-  return value === 'WINTER' ? 'Winter' : 'Summer';
+  const map: Record<ProductSeason, string> = {
+    WINTER: 'Winter',
+    SUMMER: 'Summer',
+    ALL: 'All Seasons',
+  };
+  return map[value] ?? value;
+}
+
+/** Section label for productSeason/collections (e.g. "WINTER COLLECTIONS", "WOMEN COLLECTIONS") */
+function collectionsLabel(productSeason: ProductSeason, audience?: string | null): string {
+  if (audience) {
+    const audienceUpper = audience.replace(/_/g, ' ');
+    return `${audienceUpper} COLLECTIONS`;
+  }
+  if (productSeason === 'ALL') return 'ALL COLLECTIONS';
+  return `${humanizeSeason(productSeason).toUpperCase()} COLLECTIONS`;
 }
 
 export type OfficeCardStudio = {
@@ -42,156 +56,88 @@ export type OfficeCardStudio = {
   styleTag: StyleTag;
   quality: ProductQuality;
   productSeason: ProductSeason;
+  studioType?: string;
+  audience?: string | null;
+  externalWebsiteUrl?: string | null;
   totalSkuCount: number;
   l1CategoryCounts: Array<{ l1Title: string; count: number }>;
 };
 
 type OfficeCardProps = {
   studio: OfficeCardStudio;
-  onAdd?: (studio: OfficeCardStudio) => void;
 };
 
-export function OfficeCard({ studio, onAdd }: OfficeCardProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  
-  // Use shortPitch if available, otherwise generate description
-  const description = studio.shortPitch || 
-    `${humanizeStyleTag(studio.styleTag)} Giyim Tarzı için çok çeşit bulacağınız tasarım ofisini ziyaret ediniz.`;
+export function OfficeCard({ studio }: OfficeCardProps) {
+  const description =
+    studio.shortPitch ||
+    `A ${humanizeStyleTag(studio.styleTag).toLowerCase()}-focused design studio offering a broad mix of everyday essentials. Clean silhouettes, versatile fits, and season-ready pieces designed for easy combination and high product variety.`;
 
-  const topCategories = studio.l1CategoryCounts.slice(0, 5);
-  const remainingCount = studio.l1CategoryCounts.length - 5;
+  const studioTypeLabel = studio.studioType ?? 'VIRTUAL';
+  const collectionsSectionLabel = collectionsLabel(studio.productSeason, studio.audience);
 
   return (
-    <article className="relative w-full overflow-hidden rounded-lg bg-muted shadow-md transition-shadow hover:shadow-lg">
-      {/* Aspect ratio 1200:1800 = 2:3 */}
-      <div className="relative aspect-2/3 w-full">
-        {/* Background image - full size */}
-        {studio.coverImageUrl ? (
-          <Image
-            src={studio.coverImageUrl}
-            alt={studio.title}
-            fill
-            className="object-cover object-center"
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
-          />
-        ) : (
-          <div className="absolute inset-0 bg-muted" />
+    <Card className="overflow-hidden relative h-100">
+      <CardContent className="relative p-0 aspect-2/3">
+        {/* Arka plan görseli: sağa dayalı, transparan alanlar üst üste binince kesilmez */}
+        {studio.coverImageUrl && (
+          <div className="absolute right-0 top-0 w-[50%] aspect-2/3 h-100">
+            <Image
+              src={studio.coverImageUrl}
+              alt={`${studio.title} studio`}
+              fill
+              className="object-contain object-bottom-right"
+              sizes="(max-width: 768px) 35vw, 300px"
+            />
+          </div>
         )}
 
-        {/* Top bar: title (left) + button (right) */}
-        <div className="absolute inset-x-0 top-0 flex items-start justify-between p-3 z-10">
-          <h3 className="text-md font-semibold text-gray-300 pb-2 bg-foreground/20 rounded-md line-clamp-2 p-2">
+        {/* Metin alanı: sol tarafta %65, üstte */}
+        <div className="relative z-10 flex min-h-full max-w-[65%] flex-col p-6">
+          <h6 className="text-md font-bold tracking-tight text-primary md:text-xl">
             {studio.title}
-          </h3>
-          <Button
-            type="button"
-            variant="secondary"
-            size="icon"
-            onClick={() => setIsExpanded(!isExpanded)}
-            aria-label={isExpanded ? 'Close' : 'Expand'}
-          >
-            <ChevronDown className={`h-4 w-4 transition-transform ${
-              isExpanded ? 'rotate-180' : ''
-            }`} />
-          </Button>
-        </div>
+          </h6>
+          <p className="mt-3 text-xs leading-relaxed text-foreground">
+            {description}
+          </p>
 
-        {/* Bottom panel area - animated */}
-        <div className="absolute inset-x-0 bottom-0 z-10">
-          <AnimatePresence mode="wait">
-            {!isExpanded ? (
-              // Collapsed: Description strip
-              <motion.div
-                key="collapsed"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 12, height: 0 }}
-                transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
-                className="rounded-b-lg border border-white/10 bg-white/10 p-3 backdrop-blur-md dark:bg-black/20"
-              >
-                <p className="text-xs text-gray-300 leading-snug">
-                  {description}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2 text-[12px] font-semibold uppercase tracking-wide text-secondary">
-                  <span>{humanizeStyleTag(studio.styleTag)}</span>
-                  <span aria-hidden>·</span>
-                  <span>{humanizeQuality(studio.quality)}</span>
-                </div>
-              </motion.div>
-            ) : (
-              // Expanded: Preview panel
-              <motion.div
-                key="expanded"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 12 }}
-                transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-                className="rounded-b-lg border border-white/10 bg-white/10 p-4 backdrop-blur-md dark:bg-black/40"
-              >
-                {/* Top row: StyleTag + Quality (left) | Total SKU + Season (right) */}
-                <div className="grid grid-cols-2 gap-4 mb-3">
-                  <div className="space-y-1">
-                    <div className="text-xs font-medium text-gray-300">
-                      {humanizeStyleTag(studio.styleTag)}
-                    </div>
-                    <div className="text-xs text-secondary">
-                      {humanizeQuality(studio.quality)}
-                    </div>
-                  </div>
-                  <div className="text-right space-y-1">
-                    <div className="text-xs font-medium text-gray-300">
-                      Total SKU: {studio.totalSkuCount}
-                    </div>
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
-                      {humanizeSeason(studio.productSeason)}
-                    </Badge>
-                  </div>
-                </div>
+          <div className="mt-4 space-y-1">
+            <p className="text-base font-medium text-foreground">
+              {humanizeStyleTag(studio.styleTag)}
+            </p>
+            <p className="text-sm uppercase tracking-wide text-muted-foreground">
+              {humanizeQuality(studio.quality).toUpperCase()}
+            </p>
+          </div>
 
-                {/* Divider */}
-                <div className="h-px bg-white/10 mb-3" />
-
-                {/* Category counts */}
-                {topCategories.length > 0 ? (
-                  <div className="space-y-1.5 mb-3">
-                    {topCategories.map((cat) => (
-                      <div
-                        key={cat.l1Title}
-                        className="flex items-center justify-between text-xs"
-                      >
-                        <span className="text-gray-300">{cat.l1Title}</span>
-                        <span className="text-secondary dark:text-gray-300 font-medium">
-                          {cat.count}
-                        </span>
-                      </div>
-                    ))}
-                    {remainingCount > 0 && (
-                      <div className="text-[10px] text-muted-foreground dark:text-gray-300 pt-1">
-                        +{remainingCount} more
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-xs text-muted-foreground mb-3">
-                    No categories available
-                  </div>
-                )}
-
-                {/* Visit button */}
-                <Link href={`/player/designoffices/${studio.code}`} className="block">
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="w-full h-9 text-xs font-medium"
-                  >
-                    Visit Studio
-                  </Button>
-                </Link>
-              </motion.div>
+          <div className="mt-4 space-y-1">
+            <p className="text-base font-medium text-foreground">
+              {collectionsSectionLabel}
+            </p>
+            <p className="text-sm tracking-wide text-muted-foreground">
+              Studio Type{' '}
+              <span className="uppercase">{studioTypeLabel}</span>
+            </p>
+            {studio.studioType === 'REAL' && studio.externalWebsiteUrl && (
+              <p className="text-sm mt-4">
+                <a
+                  href={studio.externalWebsiteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline underline-offset-2 hover:opacity-80 break-all"
+                >
+                  {studio.externalWebsiteUrl}
+                </a>
+              </p>
             )}
-          </AnimatePresence>
+            <Button asChild variant="default" size="default">
+              <Link href={`/player/designoffices/${studio.code}`}>
+                Visit STUDIO
+              </Link>
+            </Button>
+          </div>
+
         </div>
-      </div>
-    </article>
+      </CardContent>
+    </Card>
   );
 }

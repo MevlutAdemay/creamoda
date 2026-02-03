@@ -1,3 +1,5 @@
+// app/player/sales/_components/ShowcaseBuilder.tsx
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -10,6 +12,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/ToastCenter';
 
 type WarehouseOption = { id: string; name: string | null; marketZone: string | null };
@@ -34,7 +44,9 @@ type ListingRow = {
   productName: string;
   productCode?: string;
   salePrice: string;
+  listPrice?: string | null;
   status: string;
+  inventoryItemId?: string | null;
 };
 
 export default function ShowcaseBuilder() {
@@ -47,6 +59,10 @@ export default function ShowcaseBuilder() {
   const [loadingInv, setLoadingInv] = useState(false);
   const [loadingListings, setLoadingListings] = useState(false);
   const [listingInFlight, setListingInFlight] = useState<string | null>(null);
+  const [updateModalListing, setUpdateModalListing] = useState<ListingRow | null>(null);
+  const [updateSalePrice, setUpdateSalePrice] = useState('');
+  const [updateListPrice, setUpdateListPrice] = useState('');
+  const [updateSaving, setUpdateSaving] = useState(false);
   const toast = useToast();
 
   const fetchWarehouses = useCallback(async () => {
@@ -151,16 +167,72 @@ export default function ShowcaseBuilder() {
     }
   };
 
-  const handlePause = async (listingId: string) => {
+  const handleRemove = async (listingId: string) => {
     try {
       const res = await fetch(`/api/player/showcase-listings/${listingId}/pause`, {
         method: 'POST',
       });
-      if (!res.ok) throw new Error('Failed to pause');
-      toast({ kind: 'success', message: 'Listing paused' });
+      if (!res.ok) throw new Error('Failed to remove');
+      toast({ kind: 'success', message: 'Listing removed' });
       fetchListings();
     } catch (e) {
-      toast({ kind: 'error', message: e instanceof Error ? e.message : 'Failed to pause' });
+      toast({ kind: 'error', message: e instanceof Error ? e.message : 'Failed to remove' });
+    }
+  };
+
+  const openUpdateModal = (l: ListingRow) => {
+    setUpdateModalListing(l);
+    setUpdateSalePrice(l.salePrice);
+    setUpdateListPrice(l.listPrice ?? '');
+  };
+
+  const handleUpdatePrice = async () => {
+    if (!updateModalListing || !warehouseId) return;
+    const saleNum = parseFloat(updateSalePrice);
+    if (!Number.isFinite(saleNum) || saleNum <= 0) {
+      toast({ kind: 'error', message: 'Sale price must be a number greater than 0' });
+      return;
+    }
+    const listVal = updateListPrice.trim();
+    const listNum = listVal ? parseFloat(listVal) : undefined;
+    if (
+      listVal &&
+      (listNum === undefined || !Number.isFinite(listNum) || listNum <= 0)
+    ) {
+      toast({ kind: 'error', message: 'List price must be empty or a number greater than 0' });
+      return;
+    }
+    const listPriceToSend =
+      typeof listNum === 'number' && Number.isFinite(listNum) && listNum > 0 ? listNum : undefined;
+    const inventoryItemId = updateModalListing.inventoryItemId;
+    if (!inventoryItemId) {
+      toast({ kind: 'error', message: 'Cannot update: missing inventory item for this listing' });
+      return;
+    }
+    setUpdateSaving(true);
+    try {
+      const res = await fetch('/api/player/showcase-listings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          warehouseBuildingId: warehouseId,
+          inventoryItemId,
+          salePrice: saleNum,
+          ...(listPriceToSend != null ? { listPrice: listPriceToSend } : {}),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ kind: 'error', message: data.error ?? 'Failed to update price' });
+        return;
+      }
+      toast({ kind: 'success', message: 'Price updated' });
+      setUpdateModalListing(null);
+      fetchListings();
+    } catch (e) {
+      toast({ kind: 'error', message: e instanceof Error ? e.message : 'Failed to update price' });
+    } finally {
+      setUpdateSaving(false);
     }
   };
 
@@ -299,9 +371,17 @@ export default function ShowcaseBuilder() {
                     <td className="p-2">{l.productName ?? l.id}</td>
                     <td className="p-2">{l.marketZone}</td>
                     <td className="text-right p-2">{l.salePrice}</td>
-                    <td className="p-2">
-                      <Button size="sm" variant="secondary" onClick={() => handlePause(l.id)}>
-                        Pause
+                    <td className="p-2 flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => openUpdateModal(l)}
+                        disabled={!l.inventoryItemId}
+                      >
+                        Update
+                      </Button>
+                      <Button size="sm" variant="secondary" onClick={() => handleRemove(l.id)}>
+                        Remove
                       </Button>
                     </td>
                   </tr>
@@ -311,6 +391,57 @@ export default function ShowcaseBuilder() {
           </div>
         )}
       </div>
+
+      <Dialog
+        open={!!updateModalListing}
+        onOpenChange={(open) => {
+          if (!open) setUpdateModalListing(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Price</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="update-sale-price">Sale Price (required)</Label>
+              <Input
+                id="update-sale-price"
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={updateSalePrice}
+                onChange={(e) => setUpdateSalePrice(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="update-list-price">List Price (optional)</Label>
+              <Input
+                id="update-list-price"
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={updateListPrice}
+                onChange={(e) => setUpdateListPrice(e.target.value)}
+                placeholder="Leave empty for none"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setUpdateModalListing(null)}
+              disabled={updateSaving}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleUpdatePrice} disabled={updateSaving}>
+              {updateSaving ? 'Saving…' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,3 +1,5 @@
+//components/shared/player-navbar.tsx
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -7,6 +9,7 @@ import PlayerSettings from './player-settings';
 import PlayerSidebar from './player-sidebar';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import AdvanceDayPanel from './advance-day-panel';
+import { usePlayerWallet } from '@/stores/usePlayerWallet';
 
 interface PlayerNavbarProps {
   user?: {
@@ -17,24 +20,39 @@ interface PlayerNavbarProps {
     balanceXP?: number;
     balanceDiamond?: number;
   };
+  initialUnreadCount?: number;
 }
 
-export default function PlayerNavbar({ user: propUser }: PlayerNavbarProps) {
-  const [user, setUser] = useState<any>(propUser || { email: 'player@modaverse.com' });
+export default function PlayerNavbar({ user: propUser, initialUnreadCount = 0 }: PlayerNavbarProps) {
+  const [user, setUser] = useState<PlayerNavbarProps['user']>(propUser ?? { email: 'player@modaverse.com' });
   const [mounted, setMounted] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [clockPanelOpen, setClockPanelOpen] = useState(false);
 
-  // Fetch user data on mount
+  const { setWallet, balanceUsd, balanceXp, balanceDiamond } = usePlayerWallet();
+
   useEffect(() => {
     setMounted(true);
-    if (!propUser) {
+
+    if (propUser) {
+      setWallet({
+        balanceUsd: propUser.balanceUSD ?? 0,
+        balanceXp: propUser.balanceXP ?? 0,
+        balanceDiamond: propUser.balanceDiamond ?? 0,
+      });
+    } else {
       fetch('/api/auth/me')
-        .then(res => res.json())
-        .then(data => {
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.user?.wallet) {
+            setWallet({
+              balanceUsd: Number(data.user.wallet.balanceUsd ?? 0),
+              balanceXp: Number(data.user.wallet.balanceXp ?? 0),
+              balanceDiamond: Number(data.user.wallet.balanceDiamond ?? 0),
+            });
+          }
           if (data.user) {
-            // Merge user data with wallet data
             setUser({
               ...data.user,
               balanceUSD: data.user.wallet?.balanceUsd,
@@ -43,9 +61,9 @@ export default function PlayerNavbar({ user: propUser }: PlayerNavbarProps) {
             });
           }
         })
-        .catch(err => console.error('Failed to fetch user:', err));
+        .catch((err) => console.error('Failed to fetch user:', err));
     }
-  }, [propUser]);
+  }, [propUser, setWallet]);
 
   const formatBalance = (value: number | undefined, decimals: number = 0): string => {
     if (value === undefined) return '0';
@@ -97,14 +115,14 @@ export default function PlayerNavbar({ user: propUser }: PlayerNavbarProps) {
               Sim
             </Button>
 
-            {/* Bakiye Bilgileri - Mobilde gizli, tablet+ görünür */}
+            {/* Bakiye Bilgileri - Mobilde gizli, tablet+ görünür (from store) */}
             <div className="hidden md:flex items-center gap-3 px-3 py-2 bg-background/50 rounded-lg border border-border/50">
               {/* USD Balance */}
               <div className="flex items-center gap-2">
                 <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
                 <div className="flex flex-col">
                   <span className="text-xs text-muted-foreground">USD</span>
-                  <span className="font-semibold text-xs sm:text-sm">{formatBalance(user.balanceUSD, 2)}</span>
+                  <span className="font-semibold text-xs sm:text-sm">{formatBalance(balanceUsd, 2)}</span>
                 </div>
               </div>
 
@@ -115,7 +133,7 @@ export default function PlayerNavbar({ user: propUser }: PlayerNavbarProps) {
                 <Coins className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-500" />
                 <div className="flex flex-col">
                   <span className="text-xs text-muted-foreground">XP</span>
-                  <span className="font-semibold text-xs sm:text-sm">{formatBalance(user.balanceXP)}</span>
+                  <span className="font-semibold text-xs sm:text-sm">{formatBalance(balanceXp)}</span>
                 </div>
               </div>
 
@@ -126,7 +144,7 @@ export default function PlayerNavbar({ user: propUser }: PlayerNavbarProps) {
                 <Gem className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
                 <div className="flex flex-col">
                   <span className="text-xs text-muted-foreground">Elmas</span>
-                  <span className="font-semibold text-xs sm:text-sm">{formatBalance(user.balanceDiamond)}</span>
+                  <span className="font-semibold text-xs sm:text-sm">{formatBalance(balanceDiamond)}</span>
                 </div>
               </div>
             </div>
@@ -146,7 +164,11 @@ export default function PlayerNavbar({ user: propUser }: PlayerNavbarProps) {
       </nav>
 
       {/* Sidebar - Tek instance, hem mobile hem desktop */}
-      <PlayerSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <PlayerSidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        initialUnreadCount={initialUnreadCount}
+      />
 
       {/* Settings Sidebar */}
       <PlayerSettings

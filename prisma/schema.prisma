@@ -74,6 +74,7 @@ enum MetricType {
   SUPPLIER_COUNT
   STOCK_COUNT
   SALES_COUNT
+  AWARENESS
 }
 
 enum StaffRoleStyle {
@@ -312,6 +313,67 @@ enum SeasonTiming {
   CORE
   LATE
 }
+enum MarketingCampaignStatus {
+  SCHEDULED
+  ACTIVE
+  ENDED
+  CANCELLED
+}
+
+enum MarketingScope {
+  WAREHOUSE
+  CATEGORY
+  PRODUCT
+}
+
+// ---- PlayerMessage enums (DepartmentCode zaten mevcut) ----
+enum MessageCategory {
+  SYSTEM
+  OPERATION
+  FINANCE
+  HR
+  IT
+  LEGAL
+  DESIGN
+  MERCHANDISING
+  MARKETING
+  WAREHOUSE
+  LOGISTICS
+  CUSTOMER_SERVICE
+  CAMPAIGN
+}
+
+enum MessageLevel {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum MessageKind {
+  INFO   // no decision required, may have CTA
+  ACTION // has CTA, no approve/reject
+  DECISION // approve/reject (or multi option) required
+}
+
+enum MessageCtaType {
+  GO_TO_PAGE
+  OPEN_MODAL
+  OPEN_DRAWER
+}
+
+enum MessageDecisionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+enum MessageTemplateCode {
+  WAREHOUSE_STOCK_RECEIVED
+  LOGISTICS_CAPACITY_OVERFLOW
+  MARKETING_CAMPAIGN_EXPIRED
+}
 
 /**
  * ==================== USER ====================
@@ -352,6 +414,7 @@ model User {
   companies       Company[]
   advancedGameClocks CompanyGameClock[]
   walletTransactions PlayerWalletTransaction[]
+  playerMessages  PlayerMessage[]
 
   // Zaman
   createdAt DateTime @default(now())
@@ -361,6 +424,78 @@ model User {
   @@index([role])
   @@index([lockedUntil])
   @@map("users")
+}
+
+/**
+ * ==================== PLAYER MESSAGE ====================
+ * Oyuncu bildirimleri: sistem, operasyon, finans, HR, depo, vb.
+ * playerId -> User (oyuncu = role PLAYER olan User).
+ */
+
+model PlayerMessage {
+  id       String @id @default(cuid())
+
+  // ---- Ownership ----
+  playerId String
+  player   User   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  // ---- Classification ----
+  templateCode MessageTemplateCode?
+  category     MessageCategory
+  department   DepartmentCode
+  level        MessageLevel
+  kind         MessageKind
+
+  // ---- Content ----
+  title String
+  body  String
+
+  /** bullets: UI-friendly lists. Example: [{ "productName": "Tee", "qty": 100 }, ...] */
+  bullets Json?
+
+  /** meta: structured numbers or extra details. Example: { "marketZone": "TURKIYE", "buildingName": "Istanbul Warehouse", "totalQty": 300 } */
+  meta Json?
+
+  /**
+   * context: buildingRole/buildingId for WAREHOUSE messages.
+   * Example: { "buildingRole": "WAREHOUSE", "buildingId": "...", "marketZone": "TURKIYE", "buildingName": "Istanbul Warehouse" }
+   */
+  context Json?
+
+  // ---- Read state ----
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  // ---- CTA (navigation / UI action) ----
+  ctaType    MessageCtaType?
+  ctaLabel   String?
+  ctaPayload Json?
+
+  // ---- Decision (approve/reject) ----
+  decisionStatus  MessageDecisionStatus?
+  decidedAt       DateTime?
+  decisionPayload Json?
+  decisionResult  Json?
+
+  // ---- Optional linking to domain entities ----
+  relatedEntityType String?
+  relatedEntityId   String?
+
+  // ---- Aggregation / dedupe helper ----
+  /** Example: "WAREHOUSE_STOCK_RECEIVED:buildingId:2026-02-01". Build in code; enforce unique per player when set. */
+  dedupeKey String?
+
+  // ---- Timestamps ----
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([playerId, createdAt])
+  @@index([playerId, isRead, createdAt])
+  @@index([playerId, category, createdAt])
+  @@index([playerId, department, createdAt])
+  @@index([playerId, level, createdAt])
+  @@unique([playerId, dedupeKey])
+  @@map("player_messages")
 }
 
 /**
@@ -542,6 +677,10 @@ model Company {
   modaverseSettlements ModaverseSettlement[]
   modaverseOrders      ModaverseOrder[]
   wholesaleOrders    WholesaleOrder[]
+  warehouseMarketingCampaigns WarehouseMarketingCampaign[]
+  categoryMarketingCampaigns  CategoryMarketingCampaign[]
+  productMarketingCampaigns  ProductMarketingCampaign[]
+  warehouseAwarenessStates   WarehouseAwarenessState[]
 
   // Game clock (1-1)
   gameClock CompanyGameClock?
@@ -704,6 +843,10 @@ model CompanyBuilding {
   wholesaleOrders     WholesaleOrder[]
   modaverseSettlements ModaverseSettlement[]
   modaverseOrders     ModaverseOrder[]
+  warehouseMarketingCampaigns WarehouseMarketingCampaign[]
+  categoryMarketingCampaigns  CategoryMarketingCampaign[]
+  productMarketingCampaigns  ProductMarketingCampaign[]
+  warehouseAwarenessState    WarehouseAwarenessState?
   inventoryMovementsArchive InventoryMovementArchive[] @relation("InventoryMovementsArchive")
   inventoryWeeklySummaries InventoryWeeklySummary[] @relation("InventoryWeeklySummaries")
   buildingInventoryItems BuildingInventoryItem[] @relation("BuildingInventoryItems")
@@ -1077,6 +1220,7 @@ model ProductCategoryNode {
    */
   productTemplates ProductTemplate[]
   productSalesBandConfigs ProductSalesBandConfig[]
+  categoryMarketingCampaigns CategoryMarketingCampaign[]
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -1302,6 +1446,18 @@ model PlayerProduct {
    */
   seasonPositionTag String? @db.VarChar(24)
 
+  // =========================
+  // Sales DNA (hit / flop identity)
+  // =========================
+  // 0..1 arası kalıcı karakter: düşük => flop, yüksek => hit
+  // Ürün ilk kez oyuncuya geldiğinde SET edilir; bir daha reroll yok.
+  modelRank Float @default(0.5)
+
+  // Debug / izleme için: bu ürünün base bandı hangi "çekirdeğe" göre bulundu?
+  // (örn. L3 bulunamadı L2'ye düştü gibi durumları anlamaya yarar)
+  resolvedBandCategoryId String?
+
+
   // Flags
   isActive Boolean @default(true)
 
@@ -1360,14 +1516,9 @@ model ShowcaseListing {
   id        String @id @default(cuid())
   companyId String
 
-  // Bu listing hangi pazarda? (satış sim'i market bazlı)
   marketZone MarketZone
-
-  // İstersen: o marketin deposu (CompanyBuilding WAREHOUSE) ile bağla
-  // (MarketZone başına tek depo kuralın varsa bu çok temiz oturur)
   warehouseBuildingId String?
 
-  // Listing refers to player-owned SKU
   playerProductId   String
   productTemplateId String
 
@@ -1375,40 +1526,70 @@ model ShowcaseListing {
   pausedReason ListingPausedReason @default(NONE)
   pausedAt     DateTime?
 
-  // Pricing: oyuncunun kararı
   salePrice Decimal  @db.Decimal(12, 2)
-  listPrice Decimal? @db.Decimal(12, 2) // opsiyonel "indirim etiketi" için
+  listPrice Decimal? @db.Decimal(12, 2)
 
-  // Basit merchandising (MVP)
   isFeatured Boolean @default(false)
-  merchBoost Decimal @default(1.0) @db.Decimal(6, 3) // 0.50..2.00 gibi
+  merchBoost Decimal @default(1.0) @db.Decimal(6, 3)
 
-  // İlk kez vitrine konduğu gün (novelty/age için)
   launchedAtDayKey DateTime?
+
+  // Base snapshot (set at listing creation)
+  tierUsed     Int?
+  bandConfigId String?
+  baseSeed     String?
+  baseMinDaily Int?
+  baseMaxDaily Int?
+  baseQty      Int?
+
+  // Price snapshot (set at listing creation)
+  normalPrice     Decimal? @db.Decimal(12, 2)
+  priceIndex      Float?
+  priceMultiplier Float?
+  blockedByPrice  Boolean @default(false)
+
+  // Season snapshot (updated weekly)
+  seasonScore      Int?
+  seasonWeekIndex0 Int?
+  blockedBySeason  Boolean @default(false)
+
+  // Boost snapshot (optional)
+  positiveBoostPct Int @default(0)
+  negativeBoostPct Int @default(0)
+  boostSnapshot    Json?
+
+  views Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  company         Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   warehouse       CompanyBuilding? @relation(fields: [warehouseBuildingId], references: [id], onDelete: SetNull)
-  playerProduct   PlayerProduct   @relation(fields: [playerProductId], references: [id], onDelete: Cascade)
-  productTemplate ProductTemplate @relation(fields: [productTemplateId], references: [id], onDelete: Restrict)
+  playerProduct   PlayerProduct    @relation(fields: [playerProductId], references: [id], onDelete: Cascade)
+  productTemplate ProductTemplate  @relation(fields: [productTemplateId], references: [id], onDelete: Restrict)
 
   dailySalesLogs DailyProductSalesLog[]
+  productMarketingCampaigns ProductMarketingCampaign[]
 
-  // Aynı ürünü aynı markette 2 kez listeleme yok
   @@unique([companyId, marketZone, playerProductId])
   @@index([companyId, marketZone, status])
   @@index([companyId, status, createdAt])
+  @@index([warehouseBuildingId, status])
   @@index([playerProductId])
   @@index([productTemplateId])
   @@map("showcase_listings")
 }
+
 model DailyProductSalesLog {
   id String @id @default(cuid())
 
   companyId String
-  listingId String
+
+  // FK: listing silinince null olur
+  listingId String?
+
+  // Immutable snapshot id: listing silinse bile kalır
+  listingKey String
 
   marketZone MarketZone
   warehouseBuildingId String?
@@ -1419,49 +1600,59 @@ model DailyProductSalesLog {
   dayKey DateTime // UTC midnight
 
   // === core outcome ===
-  qtyOrdered Int @default(0) // satılan adet (MVP'de "final")
-  qtyShipped Int @default(0) // istersen sonraya bırakıp qtyOrdered=ship kabul edebilirsin
+  qtyOrdered  Int @default(0)
+  qtyShipped  Int @default(0)
   qtyReturned Int @default(0)
 
-  // === simulation introspection ===
+  // === snapshot / debug (opsiyonel ama çok faydalı) ===
+  tierUsed     Int?
   baseMinDaily Int?
   baseMaxDaily Int?
-  expectedUnits Float? // band+çarpanlar sonrası beklenen değer
-  seasonScore   Int?   // 0..100 (sezon eğrisi)
-  priceIndex    Float? // price gate sonrası (opsiyonel)
-  reasonsSnapshot Json? // multipliers, gate flags, clamp nedenleri
+  baseQty      Int?
 
-  // === pricing snapshot ===
+  expectedUnits   Float?
+  finalUnits      Float?
+  seasonScore     Int?
+  seasonMultiplier Float?
+  priceIndex      Float?
+  priceMultiplier Float?
+  positiveBoostPct Int?
+  negativeBoostPct Int?
+  blockedByPrice  Boolean?
+  blockedBySeason Boolean?
+  reasonsSnapshot Json?
+
   salePrice Decimal? @db.Decimal(12, 2)
   listPrice Decimal? @db.Decimal(12, 2)
 
-  // === money ===
   grossRevenue Decimal? @db.Decimal(12, 2)
   netRevenue   Decimal? @db.Decimal(12, 2)
   grossProfit  Decimal? @db.Decimal(12, 2)
 
-  // === derived metrics (optional) ===
-  // Traffic "sonuç" dediğin için opsiyonel tuttum.
-  // İstersen rapor kolaylığı için yazarsın, yoksa hesapla geç.
   impressions Int?
   clicks      Int?
   traffic     Int?
 
   createdAt DateTime @default(now())
 
-  company         Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   warehouse       CompanyBuilding? @relation(fields: [warehouseBuildingId], references: [id], onDelete: SetNull)
-  listing         ShowcaseListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  productTemplate ProductTemplate @relation(fields: [productTemplateId], references: [id], onDelete: Restrict)
-  playerProduct   PlayerProduct   @relation(fields: [playerProductId], references: [id], onDelete: Cascade)
 
-  @@unique([listingId, dayKey])
+  // ✅ listing relation optional + SetNull
+  listing         ShowcaseListing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
+
+  productTemplate ProductTemplate  @relation(fields: [productTemplateId], references: [id], onDelete: Restrict)
+  playerProduct   PlayerProduct    @relation(fields: [playerProductId], references: [id], onDelete: Cascade)
+
+  @@unique([listingKey, dayKey])
   @@index([companyId, dayKey])
   @@index([marketZone, dayKey])
   @@index([warehouseBuildingId, dayKey])
   @@index([productTemplateId, dayKey])
+  @@index([playerProductId, dayKey])
   @@map("daily_product_sales_logs")
 }
+
 model MarketZonePriceIndex {
   id String @id @default(cuid())
 
@@ -2096,3 +2287,206 @@ model MarketZoneSeasonScenario {
   @@map("market_zone_season_scenarios")
 }
 
+model WarehouseMarketingCampaign {
+  id                 String  @id @default(cuid())
+
+  companyId           String
+  warehouseBuildingId String
+
+  // Game-time scheduling (same dayKey concept you already use)
+  startDayKey         DateTime
+  endDayKey           DateTime
+
+  // Boost outputs (NO mechanics here, just stored inputs)
+  positiveBoostPct    Int     @default(0) // 0..100 (we will validate in code)
+  negativeBoostPct    Int     @default(0) // 0..100
+
+  // Optional metadata for UI/admin/debug
+  title               String?
+  notes               String?
+  status              MarketingCampaignStatus @default(SCHEDULED)
+
+  packageId            String
+  packageKeySnapshot   String
+  packagePriceSnapshot Decimal @db.Decimal(12,2)
+
+  skuCountSnapshot      Int
+  skuPriceMultiplier    Decimal @db.Decimal(6,3) // e.g. 1.340
+  totalPriceSnapshot    Decimal @db.Decimal(12,2) // basePrice * multiplier
+
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  company             Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouseBuilding   CompanyBuilding @relation(fields: [warehouseBuildingId], references: [id], onDelete: Cascade)
+  package             MarketingPackageDefinition @relation(fields: [packageId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, warehouseBuildingId])
+  @@index([companyId, startDayKey, endDayKey])
+  @@index([warehouseBuildingId, startDayKey, endDayKey])
+  @@index([status])
+  @@index([packageId])
+}
+
+model CategoryMarketingCampaign {
+  id                 String  @id @default(cuid())
+
+  companyId           String
+  warehouseBuildingId String
+
+  // Target category node (LOCKED: we use L2 nodes)
+  categoryNodeId      String
+
+  // Game-time scheduling
+  startDayKey         DateTime
+  endDayKey           DateTime
+
+  // Boost outputs (stored inputs; applied to listings before Step A)
+  positiveBoostPct    Int     @default(0)
+  negativeBoostPct    Int     @default(0)
+
+  // Optional metadata
+  title               String?
+  notes               String?
+  status              MarketingCampaignStatus @default(SCHEDULED)
+
+  packageId            String
+  packageKeySnapshot   String
+  packagePriceSnapshot Decimal @db.Decimal(12,2)
+
+  skuCountSnapshot      Int
+  skuPriceMultiplier    Decimal @db.Decimal(6,3)
+  totalPriceSnapshot    Decimal @db.Decimal(12,2)
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  company             Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouseBuilding   CompanyBuilding @relation(fields: [warehouseBuildingId], references: [id], onDelete: Cascade)
+  categoryNode        ProductCategoryNode @relation(fields: [categoryNodeId], references: [id], onDelete: Restrict)
+  package             MarketingPackageDefinition @relation(fields: [packageId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, warehouseBuildingId])
+  @@index([warehouseBuildingId, startDayKey, endDayKey])
+  @@index([companyId, startDayKey, endDayKey])
+  @@index([categoryNodeId])
+  @@index([status])
+  @@index([packageId])
+
+  // Optional: prevent exact duplicates (same warehouse+category+time window)
+  // (This does NOT prevent overlaps; overlap checks stay in code)
+  @@unique([companyId, warehouseBuildingId, categoryNodeId, startDayKey, endDayKey])
+}
+
+model ProductMarketingCampaign {
+  id                 String  @id @default(cuid())
+
+  companyId           String
+  warehouseBuildingId String
+
+  // Target listing (LOCKED: listing-level campaign)
+  listingId           String
+
+  // Game-time scheduling
+  startDayKey         DateTime
+  endDayKey           DateTime
+
+  // Boost outputs
+  positiveBoostPct    Int     @default(0)
+  negativeBoostPct    Int     @default(0)
+
+  title               String?
+  notes               String?
+  status              MarketingCampaignStatus @default(SCHEDULED)
+  packageId            String
+  packageKeySnapshot   String
+  packagePriceSnapshot Decimal @db.Decimal(12,2)
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  company             Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouseBuilding   CompanyBuilding @relation(fields: [warehouseBuildingId], references: [id], onDelete: Cascade)
+  package             MarketingPackageDefinition @relation(fields: [packageId], references: [id], onDelete: Restrict)
+
+  // Important: listing can be deleted on OOS.
+  // We DO NOT want campaign deletion to crash history; we can cascade or setNull.
+  // Since listingId is required, choose Cascade for now and we'll manage via status later.
+  listing             ShowcaseListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, warehouseBuildingId])
+  @@index([warehouseBuildingId, startDayKey, endDayKey])
+  @@index([companyId, startDayKey, endDayKey])
+  @@index([listingId])
+  @@index([status])
+  @@index([packageId])
+
+  // Overlap prevention: only one active/scheduled product campaign per listing (we will enforce overlap in code)
+  @@unique([companyId, listingId, startDayKey, endDayKey])
+}
+
+model MarketingPackageDefinition {
+  id                 String   @id @default(cuid())
+
+  scope              MarketingScope
+  // WAREHOUSE | CATEGORY | PRODUCT
+
+  key                String
+  // BASIC, STANDARD, PRO, ELITE, TAKEOVER
+
+  title              String
+  description        String?
+
+  durationDays       Int
+  positiveBoostPct   Int
+  negativeBoostPct   Int @default(0)
+
+  priceUsd           Decimal @db.Decimal(12,2)
+  awarenessGainDec   Decimal @db.Decimal(10,4)
+
+  isActive           Boolean @default(true)
+  sortIndex          Int     @default(0)
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  warehouseMarketingCampaigns WarehouseMarketingCampaign[]
+  categoryMarketingCampaigns  CategoryMarketingCampaign[]
+  productMarketingCampaigns  ProductMarketingCampaign[]
+
+  @@unique([scope, key])
+  @@index([scope, isActive])
+}
+model MarketingPricingRule {
+  id            String @id @default(cuid())
+  scope         MarketingScope // WAREHOUSE | CATEGORY
+  minSku        Int
+  maxSku        Int? // null = infinity
+  multiplier    Decimal @db.Decimal(6,3)
+  isActive      Boolean @default(true)
+  sortIndex     Int @default(0)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([scope, isActive])
+  @@unique([scope, minSku, maxSku])
+}
+model WarehouseAwarenessState {
+  id                String   @id @default(cuid())
+
+  companyId          String
+  warehouseBuildingId String
+
+  awareness          Decimal  @db.Decimal(10,4) @default(0) // 0.0000 .. (cap server-side)
+  updatedAt          DateTime @updatedAt
+  createdAt          DateTime @default(now())
+
+  company            Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouseBuilding  CompanyBuilding @relation(fields: [warehouseBuildingId], references: [id], onDelete: Cascade)
+
+  @@unique([warehouseBuildingId])
+  @@index([companyId])
+  @@index([companyId, warehouseBuildingId])
+}

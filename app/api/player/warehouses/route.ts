@@ -32,6 +32,7 @@ export async function GET() {
         id: true,
         name: true,
         marketZone: true,
+        country: { select: { name: true } },
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -41,6 +42,7 @@ export async function GET() {
         id: w.id,
         name: w.name ?? null,
         marketZone: w.marketZone ?? null,
+        countryName: w.country?.name ?? null,
       })),
     });
   } catch (e) {

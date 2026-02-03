@@ -141,6 +141,20 @@ export async function POST() {
         update: {}, // No-op if exists
       });
 
+      // FinanceScheduleConfig: guarantee row so we don't rely on seed
+      await tx.financeScheduleConfig.upsert({
+        where: { companyId },
+        create: {
+          companyId,
+          payrollDayOfMonth: 1,
+          rentDayOfMonth: 15,
+          overheadDayOfMonth: 15,
+          payoutDayOfMonth1: 5,
+          payoutDayOfMonth2: 20,
+        },
+        update: {},
+      });
+
       // b. Ensure buildings exist (HQ + WAREHOUSE) - idempotent
       const { hqBuilding, warehouseBuilding } = await ensureCompanyBuildings(tx, {
         companyId,

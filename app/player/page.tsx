@@ -26,6 +26,7 @@ import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { AddWarehouseWizard } from './_components/AddWarehouseWizard';
+import { InboxWidget } from '@/components/player/messages/InboxWidget';
 
 type Building = {
   id: string;
@@ -490,7 +491,8 @@ export default function PlayerPage() {
             </div>
 
             {/* Company Staff Table - right side (3/5 width) */}
-            <div className="lg:col-span-3">
+            <div className="lg:col-span-3 space-y-4">
+              <InboxWidget />
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-sm">

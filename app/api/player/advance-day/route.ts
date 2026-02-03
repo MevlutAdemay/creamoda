@@ -6,7 +6,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from '@/lib/auth/get-session';
 import prisma from '@/lib/prisma';
-import { advanceCompanyDay } from '@/lib/game/advance-day';
+import { advanceCompanyDay, ADVANCE_DAY_CONCURRENT } from '@/lib/game/advance-day';
 import { formatDayKeyString } from '@/lib/game/game-clock';
 
 export async function POST() {
@@ -27,17 +27,44 @@ export async function POST() {
 
     const result = await advanceCompanyDay(company.id);
 
+    const [wallet, unread] = await Promise.all([
+      prisma.playerWallet.findUnique({
+        where: { userId: session.user.id },
+        select: { balanceUsd: true, balanceXp: true, balanceDiamond: true },
+      }),
+      prisma.playerMessage.count({
+        where: { playerId: session.user.id, isRead: false },
+      }),
+    ]);
+
     return NextResponse.json({
       previousDayKey: formatDayKeyString(result.previousDayKey),
       newDayKey: formatDayKeyString(result.newDayKey),
       warehousesTicked: result.warehousesTicked,
       settlementsRun: result.settlementsRun,
+      wallet: wallet
+        ? {
+            balanceUsd: Number(wallet.balanceUsd),
+            balanceXp: wallet.balanceXp,
+            balanceDiamond: wallet.balanceDiamond,
+          }
+        : null,
+      unread,
     });
   } catch (e) {
+    if (e instanceof Error && e.message === ADVANCE_DAY_CONCURRENT) {
+      return NextResponse.json(
+        { error: 'Already advanced / concurrent request' },
+        { status: 409 }
+      );
+    }
+    const message =
+      e instanceof Error
+        ? e.message
+        : typeof (e as { message?: string })?.message === 'string'
+          ? (e as { message: string }).message
+          : 'Failed to advance day';
     console.error('[advance-day]', e);
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Failed to advance day' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

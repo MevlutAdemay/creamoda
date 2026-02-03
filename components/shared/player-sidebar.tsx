@@ -1,11 +1,12 @@
 // creamoda/components/shared/player-sidebar.tsx
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { X } from 'lucide-react';
+import { useInboxUnread } from '@/stores/useInboxUnread';
 
 export type SidebarItem = {
   key: string;
@@ -19,7 +20,6 @@ export type SidebarItem = {
 const DEFAULT_ITEMS: SidebarItem[] = [
   { key: 'messages', title: 'Inbox', href: '/player/messages', imageSrc: '/menu_ico/messages.webp', imageFit: 'contain' },
   { key: 'player', title: 'HeadQuarters', href: '/player', imageSrc: '/menu_ico/management.webp', imageFit: 'contain' },
-  { key: 'wholesale', title: 'Wholesale Marketplace', href: '/player/wholesale', imageSrc: '/menu_ico/wholesale.webp', imageFit: 'contain' },
   { key: 'designoffices', title: 'Product Pool', href: '/player/designoffices', imageSrc: '/menu_ico/design.webp', imageFit: 'contain' },
   { key: 'procurement', title: 'Merchandising', href: '/player/procurement', imageSrc: '/menu_ico/procurement.webp', imageFit: 'contain' },
   { key: 'marketing', title: 'Marketing Campaigns', href: '/player/marketing', imageSrc: '/menu_ico/marketing.webp', imageFit: 'contain' },
@@ -34,15 +34,32 @@ type PlayerSidebarProps = {
   isOpen?: boolean;
   onClose?: () => void;
   className?: string;
+  /** Initial unread count from server; seeds store on mount. Badge reads from store. */
+  initialUnreadCount?: number;
+  /** @deprecated Use initialUnreadCount */
+  unreadCount?: number;
 };
+
+function badgeLabel(count: number): string {
+  if (count >= 100) return '99+';
+  return String(count);
+}
 
 export default function PlayerSidebar({
   items = DEFAULT_ITEMS,
   isOpen = false,
   onClose,
   className = '',
+  initialUnreadCount,
+  unreadCount = 0,
 }: PlayerSidebarProps) {
   const pathname = usePathname();
+  const { unread, setUnread } = useInboxUnread();
+  const initial = initialUnreadCount ?? unreadCount;
+
+  useEffect(() => {
+    if (typeof initial === 'number') setUnread(initial);
+  }, [initial, setUnread]);
 
   return (
     <>
@@ -74,12 +91,14 @@ export default function PlayerSidebar({
                   ? pathname === item.href
                   : pathname === item.href ||
                     (pathname?.startsWith(item.href + '/') ?? false);
+              const badgeCount = item.key === 'messages' ? unread : 0;
 
               return (
                 <SidebarMenuCard
                   key={item.key}
                   item={item}
                   active={active}
+                  badgeCount={badgeCount}
                 />
               );
             })}
@@ -130,6 +149,7 @@ export default function PlayerSidebar({
                   ? pathname === item.href
                   : pathname === item.href ||
                     (pathname?.startsWith(item.href + '/') ?? false);
+              const badgeCount = item.key === 'messages' ? unread : 0;
 
               return (
                 <SidebarMenuCard
@@ -138,6 +158,7 @@ export default function PlayerSidebar({
                   active={active}
                   isMobile={true}
                   onClick={onClose}
+                  badgeCount={badgeCount}
                 />
               );
             })}
@@ -153,11 +174,13 @@ function SidebarMenuCard({
   active,
   isMobile = false,
   onClick,
+  badgeCount = 0,
 }: {
   item: SidebarItem;
   active: boolean;
   isMobile?: boolean;
   onClick?: () => void;
+  badgeCount?: number;
 }) {
   const fit = item.imageFit ?? 'contain';
   const [hovered, setHovered] = React.useState(false);
@@ -263,6 +286,7 @@ function SidebarMenuCard({
 
       {/* İçerik */}
       <div className="relative p-2 flex items-center gap-3">
+        {/* Icon area: on md collapsed, badge dot goes top-right here */}
         <div className="relative w-12 h-10 shrink-0">
           <Image
             src={item.imageSrc}
@@ -272,28 +296,60 @@ function SidebarMenuCard({
             className={fit === 'cover' ? 'object-cover' : 'object-contain'}
             priority={false}
           />
+          {/* Collapsed (md): dot in top-right of icon */}
+          {!isMobile && badgeCount > 0 && (
+            <span
+              className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-destructive border-2 border-background hidden lg:hidden md:block"
+              aria-hidden
+            />
+          )}
         </div>
 
         {isMobile ? (
-          <div className="flex-1 leading-tight">
-            <div className="text-[12px] font-semibold tracking-wide opacity-90">
-              {item.title}
-            </div>
-            {item.subtitle && (
-              <div className="text-[10px] opacity-55 mt-0.5">
-                {item.subtitle}
+          <div className="flex-1 leading-tight flex items-center justify-between gap-2 min-w-0">
+            <div>
+              <div className="text-[12px] font-semibold tracking-wide opacity-90">
+                {item.title}
               </div>
+              {item.subtitle && (
+                <div className="text-[10px] opacity-55 mt-0.5">
+                  {item.subtitle}
+                </div>
+              )}
+            </div>
+            {/* Mobile: count badge aligned right */}
+            {badgeCount > 0 && (
+              <span className="shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-medium flex items-center justify-center">
+                {badgeCount >= 100 ? '99+' : badgeCount}
+              </span>
             )}
           </div>
         ) : (
-          <div className="flex-1 leading-tight hidden lg:block whitespace-nowrap">
-            <div className="text-[12px] font-semibold tracking-wide opacity-90">
-              {item.title}
-            </div>
-            {item.subtitle && (
-              <div className="text-[10px] opacity-55 mt-0.5">
-                {item.subtitle}
+          <div className="flex-1 leading-tight hidden lg:flex items-center justify-between gap-2 min-w-0">
+            <div className="whitespace-nowrap">
+              <div className="text-[12px] font-semibold tracking-wide opacity-90">
+                {item.title}
               </div>
+              {item.subtitle && (
+                <div className="text-[10px] opacity-55 mt-0.5">
+                  {item.subtitle}
+                </div>
+              )}
+            </div>
+            {/* lg expanded: badge near title (dot if >= 100, else number) */}
+            {badgeCount > 0 && (
+              <span
+                className="shrink-0 flex items-center justify-center"
+                aria-hidden
+              >
+                {badgeCount >= 100 ? (
+                  <span className="w-2.5 h-2.5 rounded-full bg-destructive" />
+                ) : (
+                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-medium flex items-center justify-center">
+                    {badgeLabel(badgeCount)}
+                  </span>
+                )}
+              </span>
             )}
           </div>
         )}

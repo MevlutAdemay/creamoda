@@ -1,6 +1,6 @@
 /**
  * POST /api/player/showcase-listings/:id/pause
- * Pause a listing (status=PAUSED, pausedReason=MANUAL).
+ * Remove listing (delete). Option A: same route, behavior changed to delete so UI keeps calling it.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -26,28 +26,19 @@ export async function POST(
     }
 
     const { id } = await params;
-    const listing = await prisma.showcaseListing.findFirst({
+    const deleted = await prisma.showcaseListing.deleteMany({
       where: { id, companyId: company.id },
-      select: { id: true },
     });
-    if (!listing) {
+
+    if (deleted.count === 0) {
       return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
     }
-
-    await prisma.showcaseListing.update({
-      where: { id },
-      data: {
-        status: 'PAUSED',
-        pausedReason: 'MANUAL',
-        pausedAt: new Date(),
-      },
-    });
 
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error('[showcase-listings pause]', e);
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Failed to pause listing' },
+      { error: e instanceof Error ? e.message : 'Failed to remove listing' },
       { status: 500 }
     );
   }

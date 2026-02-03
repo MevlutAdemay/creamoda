@@ -5,7 +5,7 @@
  */
 
 import prisma from '@/lib/prisma';
-import { getPeriodForPayoutDayKey } from '@/lib/game/game-clock';
+import { getPeriodForPayoutDayKey, formatDayKeyString } from '@/lib/game/game-clock';
 import { postLedgerEntryAndUpdateWallet } from '@/lib/finance/helpers';
 import {
   FinanceDirection,
@@ -15,7 +15,15 @@ import {
 } from '@prisma/client';
 import type { PostLedgerEntryPayload } from '@/lib/finance/helpers';
 import { Decimal } from '@prisma/client/runtime/library';
-import { ShippingProfile, MetricType } from '@prisma/client';
+import {
+  ShippingProfile,
+  MetricType,
+  MessageCategory,
+  MessageLevel,
+  MessageKind,
+  DepartmentCode,
+} from '@prisma/client';
+import { applyModaverseReturnsToInventory } from '@/lib/game/apply-modaverse-returns-to-inventory';
 
 const DEFAULT_SHIPPING_PROFILE = ShippingProfile.MEDIUM;
 
@@ -63,9 +71,16 @@ export async function buildAndPostSettlement(
   });
   if (!company?.playerId) return null;
 
-  let result: BuildAndPostSettlementResult | null = null;
+  type PhaseBPayload = {
+    settlementId: string;
+    playerId: string;
+    warehouseBuildingId: string;
+    periodStartDayKey: Date;
+    periodEndDayKey: Date;
+    payoutDayKey: Date;
+  };
 
-  await prisma.$transaction(async (tx) => {
+  const txReturn = await prisma.$transaction(async (tx) => {
     const existing = await tx.modaverseSettlement.findUnique({
       where: {
         companyId_warehouseBuildingId_periodStartDayKey_periodEndDayKey: {
@@ -80,12 +95,14 @@ export async function buildAndPostSettlement(
 
     if (existing) {
       const lines = existing.lines;
-      result = {
-        settlementId: existing.id,
-        totalNetUsd: lines.reduce((sum, l) => sum.add(l.netRevenueUsd), new Decimal(0)),
-        isNew: false,
+      return {
+        result: {
+          settlementId: existing.id,
+          totalNetUsd: lines.reduce((sum, l) => sum.add(l.netRevenueUsd), new Decimal(0)),
+          isNew: false,
+        },
+        phaseBPayload: null as PhaseBPayload | null,
       };
-      return;
     }
 
     const orders = await tx.modaverseOrder.findMany({
@@ -127,8 +144,7 @@ export async function buildAndPostSettlement(
     }
 
     if (aggregatedByProduct.size === 0) {
-      result = null;
-      return;
+      return { result: null, phaseBPayload: null as PhaseBPayload | null };
     }
 
     const settlement = await tx.modaverseSettlement.create({
@@ -201,6 +217,7 @@ export async function buildAndPostSettlement(
     let commissionTotal = new Decimal(0);
     let logisticsTotal = new Decimal(0);
     let returnsTotal = new Decimal(0);
+    let returnQtyTotal = 0;
 
     for (const [productTemplateId, agg] of aggregatedByProduct) {
       const template = templateMap.get(productTemplateId);
@@ -230,6 +247,7 @@ export async function buildAndPostSettlement(
       commissionTotal = commissionTotal.add(commissionFeeUsd);
       logisticsTotal = logisticsTotal.add(logisticsFeeUsd);
       returnsTotal = returnsTotal.add(returnDeductionUsd);
+      returnQtyTotal += returnQty;
 
       await tx.modaverseSettlementLine.create({
         data: {
@@ -318,13 +336,185 @@ export async function buildAndPostSettlement(
       }
     }
 
-    result = {
+    await applyModaverseReturnsToInventory(tx, {
+      companyId,
+      warehouseBuildingId,
       settlementId: settlement.id,
-      postedLedgerEntryId: grossEntryId,
-      totalNetUsd,
-      isNew: true,
+      payoutDayKey,
+      playerId: company.playerId,
+    });
+
+    return {
+      result: {
+        settlementId: settlement.id,
+        postedLedgerEntryId: grossEntryId,
+        totalNetUsd,
+        isNew: true,
+      },
+      phaseBPayload: {
+        settlementId: settlement.id,
+        playerId: company.playerId,
+        warehouseBuildingId,
+        periodStartDayKey,
+        periodEndDayKey,
+        payoutDayKey,
+      } satisfies PhaseBPayload,
     };
   });
+
+  const result = txReturn.result;
+  const payload = txReturn.phaseBPayload;
+  if (payload) {
+    try {
+      const lines = await prisma.modaverseSettlementLine.findMany({
+        where: { settlementId: payload.settlementId },
+        select: {
+          fulfilledQty: true,
+          returnQty: true,
+          grossRevenueUsd: true,
+          commissionFeeUsd: true,
+          logisticsFeeUsd: true,
+          returnDeductionUsd: true,
+          netRevenueUsd: true,
+          productTemplateId: true,
+        },
+      });
+
+      const grossTotal = lines.reduce((s, l) => s.add(l.grossRevenueUsd), new Decimal(0));
+      const commissionTotal = lines.reduce((s, l) => s.add(l.commissionFeeUsd), new Decimal(0));
+      const logisticsTotal = lines.reduce((s, l) => s.add(l.logisticsFeeUsd), new Decimal(0));
+      const returnsTotal = lines.reduce((s, l) => s.add(l.returnDeductionUsd), new Decimal(0));
+      const netTotal = lines.reduce((s, l) => s.add(l.netRevenueUsd), new Decimal(0));
+      const returnQtyTotal = lines.reduce((s, l) => s + l.returnQty, 0);
+
+      const periodStartStr = formatDayKeyString(payload.periodStartDayKey);
+      const periodEndStr = formatDayKeyString(payload.periodEndDayKey);
+      const payoutMessageDedupe = `SETTLEMENT_PAYOUT_MESSAGE:${payload.settlementId}`;
+      const existingPayoutMsg = await prisma.playerMessage.findUnique({
+        where: {
+          playerId_dedupeKey: { playerId: payload.playerId, dedupeKey: payoutMessageDedupe },
+        },
+      });
+      if (!existingPayoutMsg) {
+        const bodyParts = [
+          `Settlement period: ${periodStartStr} → ${periodEndStr}`,
+          `Gross sales revenue: ${grossTotal.toFixed(2)} USD`,
+          `Commission: ${commissionTotal.toFixed(2)} USD`,
+          `Logistics total cost: ${logisticsTotal.toFixed(2)} USD`,
+          `Returned units: ${returnQtyTotal}`,
+          `Return deduction: ${returnsTotal.toFixed(2)} USD`,
+          `Net payout credited: ${netTotal.toFixed(2)} USD`,
+        ];
+        await prisma.playerMessage.create({
+          data: {
+            playerId: payload.playerId,
+            category: MessageCategory.OPERATION,
+            department: DepartmentCode.FINANCE,
+            level: MessageLevel.INFO,
+            kind: MessageKind.INFO,
+            title: 'Settlement completed – payout received',
+            body: bodyParts.join('\n'),
+            context: {
+              settlementId: payload.settlementId,
+              warehouseBuildingId: payload.warehouseBuildingId,
+              periodStartDayKey: periodStartStr,
+              periodEndDayKey: periodEndStr,
+              payoutDayKey: formatDayKeyString(payload.payoutDayKey),
+            },
+            dedupeKey: payoutMessageDedupe,
+          },
+        });
+      }
+
+      const lineProductIds = [...new Set(lines.map((l) => l.productTemplateId))];
+      const lineTemplates =
+        lineProductIds.length > 0
+          ? await prisma.productTemplate.findMany({
+              where: { id: { in: lineProductIds } },
+              select: { id: true, categoryL3Id: true },
+            })
+          : [];
+      const l3Ids = [...new Set(lineTemplates.map((t) => t.categoryL3Id))];
+      const nodesL3 =
+        l3Ids.length > 0
+          ? await prisma.productCategoryNode.findMany({
+              where: { id: { in: l3Ids } },
+              select: { id: true, parentId: true },
+            })
+          : [];
+      const l2Ids = [...new Set(nodesL3.map((n) => n.parentId).filter(Boolean) as string[])];
+      const nodesL2 =
+        l2Ids.length > 0
+          ? await prisma.productCategoryNode.findMany({
+              where: { id: { in: l2Ids } },
+              select: { id: true, name: true },
+            })
+          : [];
+      const l3ToL2 = new Map(
+        nodesL3.map((n) => [n.id, n.parentId]).filter(([, p]) => !!p) as [string, string][]
+      );
+      const templateById = new Map(lineTemplates.map((t) => [t.id, t]));
+      const l2Agg = new Map<string, { fulfilledQty: number; returnQty: number }>();
+      for (const line of lines) {
+        const template = templateById.get(line.productTemplateId);
+        const l2Id = template?.categoryL3Id ? l3ToL2.get(template.categoryL3Id) : undefined;
+        if (!l2Id) continue;
+        const cur = l2Agg.get(l2Id) ?? { fulfilledQty: 0, returnQty: 0 };
+        cur.fulfilledQty += line.fulfilledQty;
+        cur.returnQty += line.returnQty;
+        l2Agg.set(l2Id, cur);
+      }
+      const highRiskL2 = Array.from(l2Agg.entries())
+        .map(([l2Id, v]) => ({
+          categoryId: l2Id,
+          categoryName: nodesL2.find((n) => n.id === l2Id)?.name ?? l2Id,
+          fulfilledQty: v.fulfilledQty,
+          returnQty: v.returnQty,
+          returnRate: v.fulfilledQty > 0 ? v.returnQty / v.fulfilledQty : 0,
+        }))
+        .filter((c) => c.returnRate >= 0.1 && c.fulfilledQty >= 20);
+
+      const highRiskDedupe = `HIGH_RETURN_RISK:${payload.settlementId}`;
+      const existingHighRiskMsg = await prisma.playerMessage.findUnique({
+        where: {
+          playerId_dedupeKey: { playerId: payload.playerId, dedupeKey: highRiskDedupe },
+        },
+      });
+      if (highRiskL2.length > 0 && !existingHighRiskMsg) {
+        const bodyLines = highRiskL2.map(
+          (c) =>
+            `• ${c.categoryName}: ${(c.returnRate * 100).toFixed(1)}% return rate, ${c.fulfilledQty} fulfilled units`
+        );
+        const body =
+          'The following categories show high return rates for this settlement period. Consider reviewing product fit or quality.\n\n' +
+          bodyLines.join('\n');
+        await prisma.playerMessage.create({
+          data: {
+            playerId: payload.playerId,
+            category: MessageCategory.OPERATION,
+            department: DepartmentCode.LOGISTICS,
+            level: MessageLevel.WARNING,
+            kind: MessageKind.INFO,
+            title: 'High return risk detected',
+            body,
+            context: {
+              settlementId: payload.settlementId,
+              warehouseBuildingId: payload.warehouseBuildingId,
+              categories: highRiskL2.map((c) => ({
+                categoryId: c.categoryId,
+                categoryName: c.categoryName,
+                returnRate: c.returnRate,
+                fulfilledQty: c.fulfilledQty,
+              })),
+            },
+            dedupeKey: highRiskDedupe,
+          },
+        });
+      }
+    } catch (phaseBError) {
+      console.error('[build-and-post-settlement] Phase B (inbox/analytics) failed:', phaseBError);
+    }
+  }
 
   return result;
 }

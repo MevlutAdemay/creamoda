@@ -10,7 +10,7 @@
  * Run: npx ts-node scripts/test-fulfillment.ts
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, ListingStatus } from '@prisma/client';
 import { applySalesFulfillment, getWarehouseBacklog } from '../lib/game/simulation/apply-sales-fulfillment';
 
 const prisma = new PrismaClient();
@@ -34,7 +34,7 @@ async function main() {
     include: {
       buildings: {
         where: {
-          buildingRole: 'WAREHOUSE',
+          role: 'WAREHOUSE',
         },
         take: 1,
       },
@@ -55,7 +55,7 @@ async function main() {
   // Find a product template
   const productTemplate = await prisma.productTemplate.findFirst({
     where: {
-      isArchived: false,
+      isActive: true,
     },
   });
 
@@ -64,7 +64,7 @@ async function main() {
     return;
   }
 
-  console.log(`✓ Product: ${productTemplate.nameEn} (${productTemplate.id})\n`);
+  console.log(`✓ Product: ${productTemplate.name} (${productTemplate.id})\n`);
 
   // =========================================================================
   // CREATE TEST INVENTORY
@@ -120,7 +120,7 @@ async function main() {
     create: {
       companyId,
       productTemplateId: productTemplate.id,
-      sku: `TEST-${productTemplate.id.slice(0, 8)}`,
+      internalSkuCode: `TEST-${productTemplate.id.slice(0, 8)}`,
     },
   });
 
@@ -134,11 +134,12 @@ async function main() {
     create: {
       id: `test-listing-${dayKey}-${productTemplate.id}`,
       companyId,
+      marketZone: 'USA',
       warehouseBuildingId: warehouseId,
       playerProductId: playerProduct.id,
       productTemplateId: productTemplate.id,
       salePrice: 100.0,
-      isListed: true,
+      status: ListingStatus.LISTED,
     },
   });
 
@@ -147,24 +148,24 @@ async function main() {
 
   const salesLog = await prisma.dailyProductSalesLog.upsert({
     where: {
-      listingId_dayKey: {
-        listingId: listing.id,
+      listingKey_dayKey: {
+        listingKey: listing.id,
         dayKey,
       },
     },
     update: {
-      qtyReserved,
       qtyShipped: 0,
     },
     create: {
       companyId,
       warehouseBuildingId: warehouseId,
+      listingKey: listing.id,
       listingId: listing.id,
+      marketZone: listing.marketZone,
       productTemplateId: productTemplate.id,
       playerProductId: playerProduct.id,
       dayKey,
       qtyOrdered: qtyReserved,
-      qtyReserved,
       qtyShipped: 0,
       grossRevenue: qtyReserved * 100,
       impressions: 1000,
@@ -172,7 +173,7 @@ async function main() {
   });
 
   console.log(`✓ Sales log created:`);
-  console.log(`  - qtyReserved: ${salesLog.qtyReserved}`);
+  console.log(`  - qtyOrdered (reserved): ${salesLog.qtyOrdered}`);
   console.log(`  - qtyShipped: ${salesLog.qtyShipped}\n`);
 
   // Update inventory to reflect reservation (increment qtyReserved)
@@ -242,17 +243,17 @@ async function main() {
   // Verify sales log updated
   const salesLogAfter1 = await prisma.dailyProductSalesLog.findUnique({
     where: {
-      listingId_dayKey: {
-        listingId: listing.id,
+      listingKey_dayKey: {
+        listingKey: listing.id,
         dayKey,
       },
     },
   });
 
   console.log('📝 Sales log after fulfillment:');
-  console.log(`  - qtyReserved: ${salesLogAfter1!.qtyReserved}`);
+  console.log(`  - qtyOrdered: ${salesLogAfter1!.qtyOrdered}`);
   console.log(`  - qtyShipped: ${salesLogAfter1!.qtyShipped}`);
-  console.log(`  - Backlog: ${salesLogAfter1!.qtyReserved - salesLogAfter1!.qtyShipped}\n`);
+  console.log(`  - Backlog: ${salesLogAfter1!.qtyOrdered - salesLogAfter1!.qtyShipped}\n`);
 
   // =========================================================================
   // TEST 2: Run fulfillment again (idempotency test)

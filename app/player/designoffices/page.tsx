@@ -136,19 +136,22 @@ export default async function DesignOfficesPage({ searchParams }: PageProps) {
       styleTag: studio.styleTag,
       quality: studio.quality,
       productSeason: studio.productSeason,
+      studioType: studio.studioType,
+      audience: studio.audience ?? null,
+      externalWebsiteUrl: studio.externalWebsiteUrl ?? null,
       totalSkuCount,
       l1CategoryCounts,
     };
   });
 
   return (
-    <div className="relative min-h-screen bg-transparent">
-      <div className="container mx-auto p-8">
+    <div className="relative min-h-screen bg-transparent w-full">
+      <div className="container mx-auto p-4 min-w-full">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-4">Product Pool</h1>
-          <p className="text-muted-foreground">
-            Tasarım ofislerinden ürün havuzunuza erişin ve ürünlerinizi yönetin.
+          <h6 className="text-xl font-bold mb-4">Product Pool</h6>
+          <p className="text-xs text-muted-foreground">
+            Manage your product pool from design studios.
           </p>
         </div>
 
@@ -166,7 +169,7 @@ export default async function DesignOfficesPage({ searchParams }: PageProps) {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-4 w-full max-w-7xl">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 min-w-full max-w-6xl">
             {studios.map((studio) => (
               <OfficeCard
                 key={studio.id}
@@ -179,6 +182,9 @@ export default async function DesignOfficesPage({ searchParams }: PageProps) {
                   styleTag: studio.styleTag,
                   quality: studio.quality,
                   productSeason: studio.productSeason,
+                  studioType: studio.studioType,
+                  audience: studio.audience,
+                  externalWebsiteUrl: studio.externalWebsiteUrl,
                   totalSkuCount: studio.totalSkuCount,
                   l1CategoryCounts: studio.l1CategoryCounts,
                 }}

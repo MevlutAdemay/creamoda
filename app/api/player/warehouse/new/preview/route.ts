@@ -1,3 +1,5 @@
+// app/api/player/warehouse/new/preview/route.ts
+
 /**
  * Preview for adding a new WAREHOUSE.
  * GET ?countryId=...&marketZone=...

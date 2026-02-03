@@ -116,7 +116,7 @@ async function main() {
     where: { companyBuildingId: warehouseId, dayKey, sourceType: 'SALES_ORDER' },
   });
   const salesLog = await prisma.dailyProductSalesLog.findUnique({
-    where: { listingId_dayKey: { listingId: listing.id, dayKey } },
+    where: { listingKey_dayKey: { listingKey: listing.id, dayKey } },
   });
   const ok2 =
     res2.orderCreated &&

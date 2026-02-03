@@ -1,0 +1,2144 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/**
+ * ==================== ENUMS ====================
+ */
+
+enum Role {
+  PLAYER // Oyuncular - bakiye sistemini kullanır
+  CONTENT_MANAGER // Ürün/pool/görsel yönetimi
+  SUPER_ADMIN // Tüm sistem ve kullanıcılar
+}
+
+enum SessionStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+enum AuthProvider {
+  GOOGLE
+  CREDENTIALS
+}
+
+enum Hemisphere {
+  NORTH
+  SOUTH
+  EQUATOR
+}
+
+enum MarketZone {
+  AFRICA_SOUTH
+  APAC_EAST
+  APAC_SOUTH
+  CANADA
+  EU_NORTH
+  EU_SOUTH
+  EU_CENTRAL
+  BALKANS
+  LATAM_NORTH
+  LATAM_SOUTH
+  MENA
+  OCEANIA
+  TURKIYE
+  USA
+}
+
+enum HeatZone {
+  ZONE1
+  ZONE2
+  ZONE3
+  ZONE4
+  ZONE5
+  ZONE6
+  ZONE7
+  ZONE8
+}
+
+enum BuildingRole {
+  HQ
+  WAREHOUSE
+}
+enum MetricType {
+  SKU_COUNT
+  EMPLOYEE_COUNT
+  SUPPLIER_COUNT
+  STOCK_COUNT
+  SALES_COUNT
+}
+
+enum StaffRoleStyle {
+  EMPLOYEE
+  SUPERVISOR
+  MANAGER
+  EXECUTIVE
+}
+
+enum StaffGender {
+  MALE
+  FEMALE
+}
+enum DepartmentCode {
+  TOP_MANAGEMENT
+  FINANCE
+  HR
+  IT
+  LEGAL
+  DESIGN
+  MERCHANDISING
+  MARKETING
+  WAREHOUSE
+  LOGISTICS
+  CUSTOMER_SERVICE
+}
+
+enum ProductImageSlot {
+  MAIN
+  FRONT
+  BACK
+  DETAIL
+  ON_MODEL
+}
+
+enum CategoryLevel {
+  L0
+  L1
+  L2
+  L3
+}
+
+enum ManufacturingGroup {
+  JERSEY
+  WOVEN
+  DENIM
+  KNITWEAR
+  OUTERWEAR
+  LEATHER
+  FOOTWEAR
+  ACCESSORY
+}
+
+enum ProductSeason {
+  WINTER
+  SUMMER
+  ALL
+}
+
+enum ThermalClass {
+  HOT
+  WARM
+  MILD
+  COOL
+  COLD
+}
+
+enum ProductQuality {
+  STANDARD
+  PREMIUM
+  LUXURY
+}
+
+enum ProductRarity {
+  STANDARD
+  GOLD
+  PLATINUM
+  DIAMOND
+}
+
+enum ShippingProfile {
+  LIGHT
+  MEDIUM
+  HEAVY
+  BULKY
+}
+
+enum ProductImageUnlockType {
+  ALWAYS
+  PURCHASE_XP
+  PURCHASE_DIAMOND
+}
+
+enum UnlockMethod {
+  FREE
+  XP
+  DIAMOND
+  EVENT
+}
+
+enum StyleTag {
+  CASUAL
+  STREET
+  SMART
+  BUSINESS
+  ATHLEISURE
+}
+
+enum ListingStatus {
+  LISTED
+  PAUSED
+  DELISTED
+}
+
+enum ListingPausedReason {
+  NONE
+  OUT_OF_STOCK
+  MANUAL
+  OPERATIONS_LIMIT
+  POLICY
+}
+enum StudioStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+// ==================== WALLET TRANSACTION ENUMS ====================
+
+enum WalletCurrency {
+  XP
+  DIAMOND
+}
+
+enum WalletDirection {
+  IN
+  OUT
+}
+
+enum WalletTxnCategory {
+  EVENT_PAYMENT
+  IMAGE_UNLOCK
+  MARKETING_BOOST
+  REWARD
+  ADMIN_ADJUSTMENT
+  OTHER
+}
+enum OnboardingStatus {
+  NEW        // kayıt oldu, daha wizard'a başlamadı (opsiyonel)
+  WIZARD     // wizard süreçte
+  DONE       // wizard tamamlandı
+}
+
+enum FinanceCategory {
+  PAYROLL
+  RENT
+  OVERHEAD
+  PROCUREMENT // Factory orders
+  WHOLESALE // Wholesale supplier buys
+  MARKETING
+  EVENT_MARKETING // Market event participation costs
+  LOGISTICS
+  PART_TIME // Part-time staff for backlog clearing
+  CAPEX // One-time upgrades / equipment
+  OTHER
+}
+
+enum FinanceDirection {
+  IN
+  OUT
+}
+
+enum ObligationStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+}
+
+enum FinanceScopeType {
+  COMPANY
+  BUILDING
+  SUPPLIER
+  MARKET_ZONE
+  OTHER
+}
+
+enum FinanceCounterpartyType {
+  SYSTEM
+  SUPPLIER
+  STAFF
+  LANDLORD
+  MARKETPLACE
+  OTHER
+}
+enum InventoryMovementType {
+  IN
+  OUT
+}
+
+enum InventorySourceType {
+  WHOLESALE
+  FAST_SUPPLY // DesignStudio fast supply order (WholesaleOrder)
+  FACTORY
+  SALE_RETURN
+  SALES_RESERVATION // Keep for historical data compatibility
+  SALES_ORDER // NEW: Sales create immediate OUT movements
+  SALES_FULFILLMENT
+  RETURNS_RESTOCK
+}
+enum WholesaleOrderStatus {
+  DRAFT
+  SUBMITTED
+  PAID
+  CANCELLED
+}
+enum StudioType {
+  VIRTUAL
+  REAL
+}
+enum StudioAudience {
+  WOMEN
+  MEN
+  UNISEX
+  KIDS
+  FOOTWEAR_ONLY
+}
+enum ScenarioVariant {
+  A
+  B
+  C
+}
+
+enum SeasonTiming {
+  EARLY
+  CORE
+  LATE
+}
+
+/**
+ * ==================== USER ====================
+ */
+
+model User {
+  id String @id @default(cuid())
+
+  // Temel
+  name          String?
+  displayName   String?
+  email         String  @unique @db.Citext
+  emailVerified Boolean @default(false)
+  passwordHash  String? // OAuth için null kalır
+
+  // Rol & OAuth politikası
+  role        Role    @default(PLAYER)
+  isOAuthUser Boolean @default(false) // true ise admin olamaz (CHECK migration'da)
+
+  // Onboarding / Wizard
+  onboardingStatus      OnboardingStatus @default(NEW)
+  onboardingStep        String?          @db.VarChar(64) // "COMPANY", "WAREHOUSE", ...
+  onboardingCompletedAt DateTime?
+
+  // Güvenlik
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+  lastLoginIp         String?
+
+  // İlişkiler
+  sessions               Session[]
+  accounts               Account[]
+  activityLogs           ActivityLog[]
+  totp                   UserTotp?
+  wallet                 PlayerWallet?
+  adminInvitations AdminInvitation[]
+  companies       Company[]
+  advancedGameClocks CompanyGameClock[]
+  walletTransactions PlayerWalletTransaction[]
+
+  // Zaman
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([role])
+  @@index([lockedUntil])
+  @@map("users")
+}
+
+/**
+ * ==================== SESSION ====================
+ */
+
+model Session {
+  id     String @id @default(cuid())
+  userId String
+  token  String @unique @db.VarChar(255)
+
+  // Cihaz takibi
+  deviceId   String // fingerprint/UUID
+  deviceName String?
+  userAgent  String?
+  ipAddress  String? @db.VarChar(64)
+
+  // Durum
+  status         SessionStatus @default(ACTIVE)
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  lastActivityAt DateTime      @default(now())
+
+  // 2FA
+  twoFactorVerified Boolean @default(false)
+
+  // İlişki
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Zaman
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@index([status])
+  @@map("sessions")
+}
+
+/**
+ * ==================== ACCOUNT (OAuth) ====================
+ */
+
+model Account {
+  id     String @id @default(cuid())
+  userId String
+
+  provider          AuthProvider
+  providerAccountId String
+
+  accessToken  String? @db.Text
+  refreshToken String? @db.Text
+  tokenType    String?
+  scope        String?
+  idToken      String? @db.Text
+
+  expiresAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+/**
+ * ==================== ACTIVITY LOG ====================
+ */
+
+model ActivityLog {
+  id         String  @id @default(cuid())
+  userId     String
+  action     String  @db.VarChar(80) // "LOGIN", "ADMIN_INVITE_CREATE", ...
+  entityType String? @db.VarChar(80) // "USER", "PRODUCT", ...
+  entityId   String? @db.VarChar(120)
+  metadata   Json?
+  ipAddress  String? @db.VarChar(64)
+  userAgent  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
+/**
+ * ==================== ADMIN DAVETİ ====================
+ */
+
+model AdminInvitation {
+  id          String    @id @default(cuid())
+  email       String    @unique @db.Citext
+  invitedById String
+  role        Role      @default(SUPER_ADMIN) // Dilersen ADMIN gibi orta rol eklersin
+  token       String    @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  invitedBy User @relation(fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@map("admin_invitations")
+}
+
+/**
+ * ==================== 2FA (TOTP) ====================
+ */
+
+model UserTotp {
+  userId    String   @id
+  secret    String // Şifreli sakla (uygulama katmanında)
+  enabledAt DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_totp")
+}
+
+/**
+ * ==================== CÜZDAN (OYUN EKONOMİSİ) ====================
+ */
+/**
+ * Parayı user'a gömmek kısa vadede "kolay" ama uzun vadede pişmanlık.
+ * Muhasebe, loglama, ve yarışma ekonomisi için ayrı tablo doğru olan.
+ */
+
+model PlayerWallet {
+  id             String  @id @default(cuid())
+  userId         String  @unique
+  balanceUsd     Decimal @default(0) @db.Decimal(12, 2) // Float olmaz.
+  balanceXp      Int     @default(0)
+  balanceDiamond Int     @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@map("player_wallets")
+}
+
+/**
+ * ==================== COMPANY ====================
+ */
+
+model Company {
+  id       String @id @default(cuid())
+  playerId String @unique
+  name     String
+
+  // Onboarding kararı: zorunlu
+  countryId    String
+  cityId       String
+  currencyCode String @default("EUR")
+
+  // Relations
+  player  User    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  country Country @relation(fields: [countryId], references: [id], onDelete: Restrict)
+  city    City    @relation(fields: [cityId], references: [id], onDelete: Restrict)
+
+  buildings          CompanyBuilding[]
+  playerProducts     PlayerProduct[]
+  staff              CompanyStaff[]
+  showcaseListings   ShowcaseListing[]
+  dailyProductSalesLogs DailyProductSalesLog[]
+  equipment          CompanyEquipment[]
+  ledgerEntries      CompanyLedgerEntry[]
+  paymentObligations PaymentObligation[]
+  financeScheduleConfig FinanceScheduleConfig?
+  walletTransactions PlayerWalletTransaction[]
+  modaverseSettlements ModaverseSettlement[]
+  modaverseOrders      ModaverseOrder[]
+  wholesaleOrders    WholesaleOrder[]
+
+  // Game clock (1-1)
+  gameClock CompanyGameClock?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([countryId])
+  @@index([cityId])
+  @@map("companies")
+}
+
+/**
+ * ==================== COMPANY GAME CLOCK ====================
+ * Her company'nin kendi oyun zamanı (UTC dayKey)
+ */
+
+model CompanyGameClock {
+  id String @id @default(cuid())
+
+  companyId String @unique
+
+  // UTC midnight dayKey (00:00:00.000Z)
+  // Everyone starts at 2025-09-10
+  currentDayKey   DateTime @default(dbgenerated("'2025-09-10 00:00:00+00'::timestamptz"))
+  startedAtDayKey DateTime @default(dbgenerated("'2025-09-10 00:00:00+00'::timestamptz"))
+
+  isPaused Boolean @default(false)
+
+  // Race-proof optimistic lock
+  version Int @default(0)
+
+  // Optional audit/debug
+  lastAdvancedAt DateTime?
+
+  lastAdvancedByUserId String?
+  lastAdvancedByUser   User? @relation(fields: [lastAdvancedByUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([currentDayKey])
+  @@index([companyId, version])
+  @@map("company_game_clocks")
+}
+
+/**
+ * ==================== Locations ====================
+ */
+
+model Country {
+  id   String  @id @default(cuid())
+  name String
+  iso2 String  @unique @db.Char(2) // TR, US
+  iso3 String? @unique @db.Char(3) // TUR, USA
+  slug String  @unique // "turkiye", "united-states"
+
+  // Optional map center
+  latitude  Float?
+  longitude Float?
+
+  heatZone   HeatZone
+  marketZone MarketZone?
+  hemisphere Hemisphere?
+
+  /**
+   * Cost multipliers (MVP)
+   * Location applies multipliers.
+   */
+  salaryMultiplier        Decimal @default(1.0) @db.Decimal(6, 3)
+  rentMultiplier          Decimal @default(1.0) @db.Decimal(6, 3)
+  overheadMultiplier      Decimal @default(1.0) @db.Decimal(6, 3)
+  priceMultiplier         Decimal @default(1.0) @db.Decimal(6, 3)
+  productionMultiplier    Decimal @default(1.0) @db.Decimal(6, 3)
+
+  regions   Region[]
+  cities    City[]
+  companies Company[]
+  companyBuildings CompanyBuilding[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug])
+  @@index([iso2])
+  @@map("countries")
+}
+
+model Region {
+  id        String @id @default(cuid())
+  countryId String
+  name      String
+  slug      String
+
+  country Country @relation(fields: [countryId], references: [id], onDelete: Cascade)
+  cities  City[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([countryId, slug])
+  @@index([countryId])
+  @@map("regions")
+}
+
+model City {
+  id        String  @id @default(cuid())
+  countryId String
+  regionId  String?
+
+  name String
+  slug String
+
+  latitude  Float?
+  longitude Float?
+
+  country Country @relation(fields: [countryId], references: [id], onDelete: Cascade)
+  region  Region? @relation(fields: [regionId], references: [id], onDelete: SetNull)
+
+  companies Company[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([countryId, slug])
+  @@index([countryId])
+  @@index([regionId])
+  @@map("cities")
+}
+
+/**
+ * ==================== COMPANY BUILDING ====================
+ * Company'nin fiziksel/operasyonel bina kayıtları
+ * - HQ: company başına tek (uygulama ile garanti; DB kısıtı yok)
+ * - WAREHOUSE: kısıtlama yok, birden fazla depo serbest
+ */
+
+model CompanyBuilding {
+  id        String       @id @default(cuid())
+  companyId String
+  countryId String
+  role      BuildingRole
+
+  // WAREHOUSE için zorunlu, HQ için null bırakılır
+  marketZone MarketZone?
+
+  // İsteğe bağlı: isimlendirme/etiket
+  name String?
+
+  // Relations
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  country Country @relation(fields: [countryId], references: [id], onDelete: Restrict)
+
+  staff               CompanyStaff[]
+  showcaseListings    ShowcaseListing[]
+  dailyProductSalesLogs DailyProductSalesLog[]
+  metricStates        BuildingMetricState[]
+  wholesaleOrders     WholesaleOrder[]
+  modaverseSettlements ModaverseSettlement[]
+  modaverseOrders     ModaverseOrder[]
+  inventoryMovementsArchive InventoryMovementArchive[] @relation("InventoryMovementsArchive")
+  inventoryWeeklySummaries InventoryWeeklySummary[] @relation("InventoryWeeklySummaries")
+  buildingInventoryItems BuildingInventoryItem[] @relation("BuildingInventoryItems")
+  inventoryMovements InventoryMovement[] @relation("InventoryMovements")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([countryId])
+  @@index([role])
+  @@index([companyId, marketZone])
+  @@map("company_buildings")
+}
+/**
+// =========================
+// 1) MetricLevelConfig (TRACK LIMITS)
+// buildingRole + metricType + level -> min/max
+// =========================
+*/
+
+model MetricLevelConfig {
+  id           String      @id @default(cuid())
+
+  buildingRole BuildingRole
+  metricType   MetricType
+  level        Int
+
+  minRequired  Int         @default(0)
+  maxAllowed   Int
+
+  effects      Json?
+
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([buildingRole, metricType, level])
+  @@index([buildingRole, metricType, level])
+  @@index([buildingRole, level])
+}
+
+
+// =========================
+// 2) EconomyConfig (TRACK UPGRADE COST + XP)
+// Seçenek 2: level atlamak için para + şartlar
+// =========================
+
+model EconomyConfig {
+  id               String      @id @default(cuid())
+
+  buildingRole     BuildingRole
+  metricType       MetricType
+  level            Int
+
+  upgradeCostMoney Decimal @db.Decimal(12, 2)
+  awardXpOnUpgrade Int         @default(0)
+
+  // --- UPGRADE EFFECTS ON BUILDING COSTS ---
+  areaM2            Int @default(0)
+
+  // If you ever want hard overrides (optional)
+  rentPerMonthly    Decimal? @db.Decimal(12, 2)
+  overheadMonthly   Decimal? @db.Decimal(12, 2)
+
+  // Optional knobs (if you want later)
+  effects          Json?
+
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@unique([buildingRole, metricType, level])
+  @@index([buildingRole, metricType, level])
+}
+
+// =========================
+// Platform fee config by SALES_COUNT level range (settlement commission/logistics/returns)
+// =========================
+model PlatformFeeLevelConfig {
+  id        String  @id @default(cuid())
+  levelMin  Int
+  levelMax  Int
+  commissionRate     Decimal @db.Decimal(5, 4)
+  logisticsMultiplier Decimal @db.Decimal(6, 4)
+  returnRateMin      Decimal @db.Decimal(6, 4)
+  returnRateMax      Decimal @db.Decimal(6, 4)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([levelMin, levelMax, isActive])
+  @@map("platform_fee_level_configs")
+}
+
+// =========================
+// Base shipping unit fee by ShippingProfile (settlement logistics)
+// =========================
+model ShippingProfileFeeConfig {
+  id            String         @id @default(cuid())
+  shippingProfile ShippingProfile @unique
+  baseUnitFeeUsd Decimal       @db.Decimal(12, 2)
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@map("shipping_profile_fee_configs")
+}
+
+// =========================
+// 3) StaffingRule (TRACK STAFF DELTA)
+// "Bu track level'a çıkınca şu departmana şu kadar kişi eklenir"
+// Uygulama: binanın ilgili track level'ına göre 1..level arası delta'ları toplayıp
+// "required total" hesaplayabilirsin.
+// =========================
+
+model StaffingRule {
+  id              String         @id @default(cuid())
+
+  buildingRole    BuildingRole
+  metricType      MetricType
+  level           Int
+
+  departmentCode  DepartmentCode
+
+  // Use roleCode to match CompanyStaff.roleCode and your future StaffRoleCatalog
+  roleStyle       StaffRoleStyle
+  roleCode        String         @db.VarChar(40)
+  roleName        String         @db.VarChar(120) // optional but useful for admin UI readability
+
+  // delta headcount for THIS (metricType, level) step
+  deltaHeadcount            Int
+  baseMonthlySalary         Decimal @db.Decimal(12, 2)
+
+  effects         Json?
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@unique([buildingRole, metricType, level, departmentCode, roleCode])
+  @@index([buildingRole, metricType, level])
+  @@index([buildingRole, level])
+  @@index([roleCode])
+  @@map("staffing_rule")
+}
+
+
+
+// =========================
+// 4) RequirementRule (TRACK GATE: EQUIPMENT + optionally staffing complete)
+// Seçenek 2: şartlar tamam değilse level upgrade yok.
+// =========================
+
+model RequirementRule {
+  id                       String       @id @default(cuid())
+
+  buildingRole             BuildingRole
+  metricType               MetricType
+  level                    Int
+
+  // If true: staffing (derived from StaffingRule deltas) must be satisfied
+  requiresStaffingComplete Boolean      @default(true)
+
+  effects                  Json?
+
+  createdAt                DateTime     @default(now())
+  updatedAt                DateTime     @updatedAt
+
+  @@unique([buildingRole, metricType, level])
+  @@index([buildingRole, metricType, level])
+
+  equipmentRequirements     RequirementEquipment[]
+}
+
+model RequirementEquipment {
+  id               String          @id @default(cuid())
+
+  ruleId           String
+  equipmentId      String
+  requiredQuantity Int             @default(1)
+
+  rule             RequirementRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  equipment        EquipmentCatalog @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+
+  @@unique([ruleId, equipmentId])
+  @@index([equipmentId])
+}
+
+
+// =========================
+// Equipment models (needed for RequirementRule gating)
+// =========================
+
+model EquipmentCatalog {
+  id                    String       @id @default(cuid())
+
+  code                  String       @unique // "PACKING_STATION", "BARCODE_SCANNER_SET", etc.
+  name                  String
+
+  // optional: restrict where it can be used
+  allowedBuildingRole   BuildingRole?
+
+  purchaseCostMoney       Decimal @db.Decimal(12, 2)
+  monthlyMaintenanceCost  Decimal @db.Decimal(12, 2)
+
+  // Optional effects: { "salesBoostPct": 0.10, "stockBoostPct": 0.08 }
+  effects               Json?
+
+  requirementEquipments RequirementEquipment[]
+  companyEquipments     CompanyEquipment[]
+
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+}
+
+model CompanyEquipment {
+  id           String          @id @default(cuid())
+
+  companyId    String
+  equipmentId  String
+
+  quantity     Int             @default(1)
+  isActive     Boolean         @default(true)
+  acquiredAt   DateTime        @default(now())
+
+  company       Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  equipment     EquipmentCatalog @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, equipmentId])
+  @@index([companyId])
+  @@index([equipmentId])
+}
+
+
+
+model BuildingMetricState {
+  id              String    @id @default(cuid())
+  buildingId       String
+
+  metricType       MetricType
+
+  
+  // track level for this metricType in this building
+  currentLevel     Int       @default(1)
+
+  // --- UPGRADE EFFECTS ON BUILDING COSTS ---
+  areaM2            Int @default(0)
+
+  // If you ever want hard overrides (optional)
+  rentPerMonthly    Decimal? @db.Decimal(12, 2)
+  overheadMonthly   Decimal? @db.Decimal(12, 2)
+
+  // current observed count in this building (per market)
+  currentCount     Int       @default(0)
+
+
+  lastEvaluatedAt  DateTime?
+  lastUpgradedAt   DateTime?
+
+  building         CompanyBuilding @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([buildingId, metricType])
+  @@index([buildingId])
+  @@index([metricType])
+  @@index([buildingId, metricType, currentLevel])
+  @@map("building_metric_states")
+}
+
+/**
+ * ==================== COMPANY STAFF ====================
+ * Company'nin işe aldığı gerçek personel kayıtları
+ */
+
+model CompanyStaff {
+  id String @id @default(cuid())
+
+  companyId  String
+  buildingId String
+
+  // Bu personel hangi "metric" yüzünden geldi? (senin json'da var)
+  metricType MetricType
+  level      Int
+
+  departmentCode DepartmentCode
+
+  roleCode  String @db.VarChar(40)
+  roleName  String @db.VarChar(120)
+  roleStyle StaffRoleStyle
+
+  fullName String @db.VarChar(120)
+  gender   StaffGender
+
+  baseMonthlySalary        Decimal @db.Decimal(12, 2)
+  baseCurrencyCode         String  @db.Char(3)
+  salaryMultiplierApplied  Decimal @db.Decimal(8, 3) @default(1.0)
+  monthlySalaryFinal       Decimal @db.Decimal(12, 2)
+
+  hiredAt DateTime // Game simulation dayKey (UTC midnight), set explicitly on create
+  firedAt DateTime? // Game simulation dayKey (UTC midnight) when fired, if applicable
+
+  company  Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  building CompanyBuilding @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([buildingId])
+  @@index([metricType, level])
+  @@index([departmentCode])
+  @@index([roleCode])
+  @@map("company_staff")
+}
+
+/**
+ * ==================== STAFF NAME TEMPLATES ====================
+ * İsim havuzu (seed). Ülke + cinsiyet + opsiyonel departmana göre seçim yapılabilir.
+ */
+
+model StaffNameTemplate {
+  id String @id @default(cuid())
+
+  firstName String @db.VarChar(60)
+  lastName  String @db.VarChar(60)
+
+  gender StaffGender
+
+  // ISO country code (TR, DE, ES...) senin json'da böyle
+  countryCode String @db.Char(2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([countryCode])
+  @@index([gender])
+  @@map("staff_name_templates")
+}
+
+
+
+
+/**
+ * ==================== CATEGORY TREE ====================
+ * Single-table tree.
+ * ProductTemplate attaches ONLY to L3 nodes.
+ */
+
+model ProductCategoryNode {
+  id    String        @id @default(cuid())
+  level CategoryLevel
+
+  code String
+  name String
+  slug String
+
+  parentId String?
+  parent   ProductCategoryNode?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children ProductCategoryNode[] @relation("CategoryTree")
+
+  /**
+   * L3 defaults (nullable on L0-L2)
+   */
+  manufacturingGroup     ManufacturingGroup?
+  defaultShippingProfile ShippingProfile?
+  defaultSizeProfileId   String?
+  defaultSizeProfile     SizeProfile?        @relation(fields: [defaultSizeProfileId], references: [id], onDelete: SetNull)
+
+  /**
+   * L3 -> templates
+   */
+  productTemplates ProductTemplate[]
+  productSalesBandConfigs ProductSalesBandConfig[]
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Uniqueness inside level
+  @@unique([level, code])
+  @@unique([level, slug])
+  @@index([level])
+  @@index([parentId])
+  @@index([isActive])
+  @@map("product_category_nodes")
+}
+
+/**
+ * ==================== SIZE PROFILES ====================
+ * Default sizing set for a category or template.
+ */
+
+model SizeProfile {
+  id          String  @id @default(cuid())
+  code        String  @unique // "APPAREL_ALPHA", "WOMEN_EU_NUMERIC", "SHOES_EU"
+  name        String
+  description String?
+
+  // ordered list of sizes in this profile (S/M/L, 36/38/40, 39/40/41...)
+  sizes SizeProfileSize[]
+
+  // categories and templates that default to this profile
+  categories       ProductCategoryNode[]
+  productTemplates ProductTemplate[]
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@map("size_profiles")
+}
+
+model SizeProfileSize {
+  id            String      @id @default(cuid())
+  sizeProfileId String
+  sizeProfile   SizeProfile @relation(fields: [sizeProfileId], references: [id], onDelete: Cascade)
+
+  // display label: "XS", "S", "M", "L" or "36", "38"
+  label String
+  // optional internal code: "XS", "EU_36"
+  code  String?
+
+  // for sorting
+  sortOrder Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([sizeProfileId, label])
+  @@index([sizeProfileId, sortOrder])
+  @@map("size_profile_sizes")
+}
+
+/**
+ * ==================== PRODUCT TEMPLATE (V02) ====================
+ * Global archetype catalog.
+ * Simulation-critical: categoryL3 + productSeason + thermalClass + (styleId).
+ */
+
+model ProductTemplate {
+  id          String  @id @default(cuid())
+  code        String  @unique
+  name        String
+  description String?
+
+  // MUST be L3 node
+  categoryL3Id String
+
+  // Simulation keys
+  productSeason ProductSeason
+  thermalClass  ThermalClass
+
+  // NEW: Style dimension (multi-tag)
+  styleTags StyleTag[]
+
+  // Base economics
+  baseCost           Decimal @db.Decimal(12, 2)
+  suggestedSalePrice Decimal @db.Decimal(12, 2)
+
+  productQuality  ProductQuality
+  productRarity   ProductRarity   @default(STANDARD)
+  shippingProfile ShippingProfile @default(MEDIUM)
+
+  // Unlock/progression
+  unlockCostXp      Int?
+  unlockCostDiamond Int?
+
+  // Season scenario definition (WINTER_EARLY_A etc.)
+  seasonScenarioDefinitionId String?
+  seasonScenarioDefinition   SeasonScenarioDefinition? @relation(fields: [seasonScenarioDefinitionId], references: [id], onDelete: SetNull)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sizeProfileId String?
+  sizeProfile   SizeProfile? @relation(fields: [sizeProfileId], references: [id], onDelete: SetNull)
+
+  categoryL3 ProductCategoryNode @relation(fields: [categoryL3Id], references: [id], onDelete: Restrict)
+
+  playerProducts       PlayerProduct[]
+  productImageTemplates ProductImageTemplate[]
+  technicalSheet        TechnicalSheet?
+  showcaseListings     ShowcaseListing[]
+  dailyProductSalesLogs DailyProductSalesLog[]
+  wholesaleOrderLines   WholesaleOrderLine[]
+  inventoryMovementsArchive InventoryMovementArchive[]
+  inventoryWeeklySummaries InventoryWeeklySummary[]
+  buildingInventoryItems BuildingInventoryItem[]
+  inventoryMovements InventoryMovement[]
+  modaverseOrderItems ModaverseOrderItem[]
+  modaverseSettlementLines ModaverseSettlementLine[]
+  designStudioItems DesignStudioItem[]
+
+  createdAtIndexHelper Int?
+
+  @@index([categoryL3Id])
+  @@index([productSeason])
+  @@index([thermalClass])
+  @@index([shippingProfile])
+  @@index([seasonScenarioDefinitionId])
+  @@index([isActive])
+  @@map("product_templates")
+}
+
+/**
+ * ==================== PRODUCT IMAGES (TEMPLATE-LEVEL) ====================
+ * Keep minimal for now: template can have multiple image "slots".
+ */
+
+model ProductImageTemplate {
+  id                String          @id @default(cuid())
+  productTemplateId String
+  productTemplate   ProductTemplate @relation(fields: [productTemplateId], references: [id], onDelete: Cascade)
+
+  slot       ProductImageSlot       @default(MAIN)
+  url        String
+  alt        String?
+  unlockType ProductImageUnlockType @default(ALWAYS)
+
+  // NEW: costs (template-level price)
+  unlockCostXp      Int?
+  unlockCostDiamond Int?
+
+  // optional: prompt metadata for regeneration
+  meta Json?
+
+  sortOrder Int @default(0)
+
+  // Relations
+  playerProductImages PlayerProductImage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productTemplateId])
+  @@index([productTemplateId, slot])
+  @@index([productTemplateId, sortOrder])
+  @@map("product_image_templates")
+}
+
+/**
+ * ==================== TECHNICAL SHEET (TEMPLATE-LEVEL) ====================
+ * Minimal "spec sheet" container. Expand later.
+ */
+
+model TechnicalSheet {
+  id                String          @id @default(cuid())
+  productTemplateId String          @unique
+  productTemplate   ProductTemplate @relation(fields: [productTemplateId], references: [id], onDelete: Cascade)
+
+  // Keep flexible
+  compositionText String? // "100% cotton" etc
+  careText        String? // wash instructions
+  fitText         String? // fit notes
+  notes           String?
+
+  // structured technical attributes if needed
+  spec Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("technical_sheets")
+}
+
+model PlayerProduct {
+  id                String  @id @default(cuid())
+  companyId         String
+  productTemplateId String
+
+  // Player-specific identity
+  internalSkuCode String?
+  displayName     String?
+
+  // Unlock status
+  isUnlocked        Boolean       @default(false)
+  unlockedAt        DateTime?
+  unlockMethod      UnlockMethod?
+  unlockCostXp      Int?
+  unlockCostDiamond Int?
+
+  // Player-specific economics (opsiyonel)
+  baseCostOverride       Decimal? @db.Decimal(12, 2)
+  suggestedPriceOverride Decimal? @db.Decimal(12, 2)
+
+  /**
+   * Product lifecycle (optional)
+   * - First day this product was launched/listed by the player (dayKey UTC midnight).
+   */
+  launchedAtDayKey DateTime?
+
+  /**
+   * Optional simple positioning tag for UI/logic hooks
+   */
+  seasonPositionTag String? @db.VarChar(24)
+
+  // =========================
+  // Sales DNA (hit / flop identity)
+  // =========================
+  // 0..1 arası kalıcı karakter: düşük => flop, yüksek => hit
+  // Ürün ilk kez oyuncuya geldiğinde SET edilir; bir daha reroll yok.
+  modelRank Float @default(0.5)
+
+  // Debug / izleme için: bu ürünün base bandı hangi "çekirdeğe" göre bulundu?
+  // (örn. L3 bulunamadı L2'ye düştü gibi durumları anlamaya yarar)
+  resolvedBandCategoryId String?
+
+
+  // Flags
+  isActive Boolean @default(true)
+
+  company         Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  productTemplate ProductTemplate @relation(fields: [productTemplateId], references: [id], onDelete: Restrict)
+
+  images           PlayerProductImage[]
+  showcaseListings ShowcaseListing[]
+  dailyProductSalesLogs DailyProductSalesLog[]
+  buildingInventoryItems BuildingInventoryItem[] @relation("InventoryPlayerProduct")
+  inventoryMovements InventoryMovement[] @relation("MovementPlayerProduct")
+  modaverseOrderItems ModaverseOrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, productTemplateId])
+  @@index([companyId])
+  @@index([productTemplateId])
+  @@index([companyId, isUnlocked])
+  @@index([launchedAtDayKey])
+  @@map("player_products")
+}
+
+
+model PlayerProductImage {
+  id                     String @id @default(cuid())
+  playerProductId        String
+  productImageTemplateId String
+
+  // Player-specific lock state
+  isUnlocked   Boolean       @default(false)
+  unlockedAt   DateTime?
+  unlockMethod UnlockMethod?
+  paidXp       Int?
+  paidDiamond  Int?
+
+  // If player buys/generates, they may get a personalized URL (optional)
+  urlOverride String?
+  meta        Json?
+
+  playerProduct        PlayerProduct        @relation(fields: [playerProductId], references: [id], onDelete: Cascade)
+  productImageTemplate ProductImageTemplate @relation(fields: [productImageTemplateId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([playerProductId, productImageTemplateId])
+  @@index([playerProductId])
+  @@index([playerProductId, isUnlocked])
+  @@index([productImageTemplateId])
+  @@map("player_product_images")
+}
+
+model ShowcaseListing {
+  id        String @id @default(cuid())
+  companyId String
+
+  marketZone MarketZone
+  warehouseBuildingId String?
+
+  playerProductId   String
+  productTemplateId String
+
+  status       ListingStatus       @default(LISTED)
+  pausedReason ListingPausedReason @default(NONE)
+  pausedAt     DateTime?
+
+  salePrice Decimal  @db.Decimal(12, 2)
+  listPrice Decimal? @db.Decimal(12, 2)
+
+  isFeatured Boolean @default(false)
+  merchBoost Decimal @default(1.0) @db.Decimal(6, 3)
+
+  launchedAtDayKey DateTime?
+
+  // Base snapshot (set at listing creation)
+  tierUsed     Int?
+  bandConfigId String?
+  baseSeed     String?
+  baseMinDaily Int?
+  baseMaxDaily Int?
+  baseQty      Int?
+
+  // Price snapshot (set at listing creation)
+  normalPrice     Decimal? @db.Decimal(12, 2)
+  priceIndex      Float?
+  priceMultiplier Float?
+  blockedByPrice  Boolean @default(false)
+
+  // Season snapshot (updated weekly)
+  seasonScore      Int?
+  seasonWeekIndex0 Int?
+  blockedBySeason  Boolean @default(false)
+
+  // Boost snapshot (optional)
+  positiveBoostPct Int @default(0)
+  negativeBoostPct Int @default(0)
+  boostSnapshot    Json?
+
+  views Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouse       CompanyBuilding? @relation(fields: [warehouseBuildingId], references: [id], onDelete: SetNull)
+  playerProduct   PlayerProduct    @relation(fields: [playerProductId], references: [id], onDelete: Cascade)
+  productTemplate ProductTemplate  @relation(fields: [productTemplateId], references: [id], onDelete: Restrict)
+
+  dailySalesLogs DailyProductSalesLog[]
+
+  @@unique([companyId, marketZone, playerProductId])
+  @@index([companyId, marketZone, status])
+  @@index([companyId, status, createdAt])
+  @@index([warehouseBuildingId, status])
+  @@index([playerProductId])
+  @@index([productTemplateId])
+  @@map("showcase_listings")
+}
+
+model DailyProductSalesLog {
+  id String @id @default(cuid())
+
+  companyId String
+
+  // FK: listing silinince null olur
+  listingId String?
+
+  // Immutable snapshot id: listing silinse bile kalır
+  listingKey String
+
+  marketZone MarketZone
+  warehouseBuildingId String?
+
+  productTemplateId String
+  playerProductId   String
+
+  dayKey DateTime // UTC midnight
+
+  // === core outcome ===
+  qtyOrdered  Int @default(0)
+  qtyShipped  Int @default(0)
+  qtyReturned Int @default(0)
+
+  // === snapshot / debug (opsiyonel ama çok faydalı) ===
+  tierUsed     Int?
+  baseMinDaily Int?
+  baseMaxDaily Int?
+  baseQty      Int?
+
+  expectedUnits   Float?
+  finalUnits      Float?
+  seasonScore     Int?
+  seasonMultiplier Float?
+  priceIndex      Float?
+  priceMultiplier Float?
+  positiveBoostPct Int?
+  negativeBoostPct Int?
+  blockedByPrice  Boolean?
+  blockedBySeason Boolean?
+  reasonsSnapshot Json?
+
+  salePrice Decimal? @db.Decimal(12, 2)
+  listPrice Decimal? @db.Decimal(12, 2)
+
+  grossRevenue Decimal? @db.Decimal(12, 2)
+  netRevenue   Decimal? @db.Decimal(12, 2)
+  grossProfit  Decimal? @db.Decimal(12, 2)
+
+  impressions Int?
+  clicks      Int?
+  traffic     Int?
+
+  createdAt DateTime @default(now())
+
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouse       CompanyBuilding? @relation(fields: [warehouseBuildingId], references: [id], onDelete: SetNull)
+
+  // ✅ listing relation optional + SetNull
+  listing         ShowcaseListing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
+
+  productTemplate ProductTemplate  @relation(fields: [productTemplateId], references: [id], onDelete: Restrict)
+  playerProduct   PlayerProduct    @relation(fields: [playerProductId], references: [id], onDelete: Cascade)
+
+  @@unique([listingKey, dayKey])
+  @@index([companyId, dayKey])
+  @@index([marketZone, dayKey])
+  @@index([warehouseBuildingId, dayKey])
+  @@index([productTemplateId, dayKey])
+  @@index([playerProductId, dayKey])
+  @@map("daily_product_sales_logs")
+}
+
+model MarketZonePriceIndex {
+  id String @id @default(cuid())
+
+  marketZone MarketZone @unique
+
+  // suggestedSalePrice * multiplier = o marketin "normal" etiketi
+  multiplier Decimal @db.Decimal(8, 3) @default(1.0)
+
+  // ileride istersen: kategori bazlı override
+  // categoryL3Id String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@map("market_zone_price_indexes")
+}
+
+model RarityConfig {
+  id               String   @id @default(cuid())
+  rarity           ProductRarity @unique
+  demandMultiplier Decimal  @db.Decimal(6, 3)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([isActive])
+  @@map("rarity_configs")
+}
+
+model ProductSalesBandConfig {
+  id String @id @default(cuid())
+
+  categoryL3Id String
+  productQuality ProductQuality
+
+  // HQ SALES_COUNT metric bracket
+  tierMin Int
+  tierMax Int
+
+  minDaily Int
+  maxDaily Int
+  expectedMode Int?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  categoryL3 ProductCategoryNode @relation(fields: [categoryL3Id], references: [id], onDelete: Cascade)
+
+  @@index([categoryL3Id, productQuality])
+  @@index([tierMin, tierMax])
+  @@index([isActive])
+  @@map("product_sales_band_configs")
+
+  @@unique([categoryL3Id, productQuality, tierMin, tierMax])
+}
+/**
+ * CompanyLedgerEntry (append-only, USD ONLY)
+ * Stores all realized money movements for reports and audit.
+ * Do NOT update entries - refunds are new opposite entries.
+ * XP and DIAMOND are handled separately in PlayerWalletTransaction.
+ */
+model CompanyLedgerEntry {
+  id        String @id @default(cuid())
+  companyId String
+
+  dayKey    DateTime // UTC midnight, used for snapshots
+  direction FinanceDirection
+  amountUsd Decimal          @db.Decimal(12, 2) // Always positive
+
+  category         FinanceCategory
+  scopeType        FinanceScopeType
+  scopeId          String? // Interpreted by scopeType (buildingId, supplierId, etc.)
+  counterpartyType FinanceCounterpartyType
+  counterpartyId   String?
+
+  refType String? // e.g. "BUILDING_UPGRADE", "WHOLESALE_ORDER", "PROCUREMENT_ORDER", "PAYMENT_OBLIGATION"
+  refId   String?
+
+  idempotencyKey String @unique // REQUIRED for idempotency
+
+  note String?
+
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // Relations from other models that reference this ledger entry
+  paymentObligations PaymentObligation[]
+
+  @@index([companyId, dayKey])
+  @@index([companyId, category, dayKey])
+  @@index([refType, refId])
+  @@map("company_ledger_entries")
+}
+
+/**
+ * PaymentObligation (USD ONLY)
+ * Represents scheduled payments (future-dated).
+ * Source of recurring payments like payroll/rent/overhead.
+ */
+model PaymentObligation {
+  id        String @id @default(cuid())
+  companyId String
+
+  dueDayKey DateTime // UTC midnight (normalized 00:00)
+  amountUsd Decimal  @db.Decimal(12, 2)
+
+  category FinanceCategory
+  status   ObligationStatus @default(PENDING)
+
+  scopeType        FinanceScopeType
+  scopeId          String?
+  counterpartyType FinanceCounterpartyType
+  counterpartyId   String?
+
+  refType String? // e.g. "MONTHLY_PAYROLL", "MONTHLY_RENT", "PROCUREMENT_DEPOSIT"
+  refId   String?
+
+  autoPay      Boolean @default(true)
+  priority     Int     @default(50) // Higher = paid first if money is tight
+  failureCount Int     @default(0)
+
+  cycleKey String? // e.g. "2025-01" for monthly obligations (idempotency)
+
+  idempotencyKey    String              @unique // REQUIRED for idempotency
+  lastFailureReason String?
+  paidLedgerEntryId String?
+  paidLedgerEntry   CompanyLedgerEntry? @relation(fields: [paidLedgerEntryId], references: [id], onDelete: SetNull)
+
+  paidAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status, dueDayKey])
+  @@index([companyId, dueDayKey])
+  @@map("payment_obligations")
+}
+
+/**
+ * FinanceScheduleConfig
+ * Configurable payment schedule days for each company.
+ * Payroll on 1st, rent/overhead mid-month (15th) by default.
+ */
+model FinanceScheduleConfig {
+  id        String @id @default(cuid())
+  companyId String @unique
+
+  payrollDayOfMonth  Int @default(1)
+  rentDayOfMonth     Int @default(15)
+  overheadDayOfMonth Int @default(15)
+
+  payoutDayOfMonth1 Int @default(5)
+  payoutDayOfMonth2 Int @default(20)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("finance_schedule_configs")
+}
+
+/**
+ * PlayerWalletTransaction (append-only, XP / DIAMOND ONLY)
+ * Separate system for XP and DIAMOND movements.
+ * USD movements go to CompanyLedgerEntry.
+ */
+model PlayerWalletTransaction {
+  id        String  @id @default(cuid())
+  userId    String
+  companyId String?
+
+  dayKey    DateTime // UTC midnight
+  currency  WalletCurrency
+  direction WalletDirection
+  amount    Int // always positive integer
+
+  category WalletTxnCategory
+
+  refType String?
+  refId   String?
+
+  idempotencyKey String? @unique
+  note           String?
+
+  createdAt DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([userId, dayKey])
+  @@index([companyId, dayKey])
+  @@index([refType, refId])
+  @@map("player_wallet_transactions")
+}
+
+/**
+ * ModaverseSettlement (V02)
+ * Settlement records per warehouse per period. Ledger linkage for traceability.
+ */
+model ModaverseSettlement {
+  id        String @id @default(cuid())
+  companyId String
+  warehouseBuildingId String
+
+  periodStartDayKey DateTime // UTC midnight
+  periodEndDayKey   DateTime // UTC midnight
+  payoutDayKey      DateTime // UTC midnight (5th or 20th)
+
+  lines ModaverseSettlementLine[]
+
+  createdAt DateTime @default(now())
+
+  company  Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouse CompanyBuilding @relation(fields: [warehouseBuildingId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, warehouseBuildingId, periodStartDayKey, periodEndDayKey])
+  @@index([companyId])
+  @@index([warehouseBuildingId])
+  @@map("modaverse_settlements")
+}
+/**
+ * ModaverseSettlementLine (V02)
+ * Line items for settlement records. Explicit snapshot/aggregate columns.
+ */
+model ModaverseSettlementLine {
+  id String @id @default(cuid())
+
+  settlementId      String
+  productTemplateId String
+  listingId         String?
+
+  // Aggregated qty for the period (snapshot)
+  fulfilledQty Int @default(0)
+
+  // Snapshot pricing used for gross calc (do not change later)
+  salePriceUsd    Decimal @default(0) @db.Decimal(12, 2)
+  grossRevenueUsd Decimal @default(0) @db.Decimal(14, 2)
+
+  // Tier/country snapshots (explicit V02)
+  tierSnapshot          String?  // e.g. tier code at payout
+  logisticsCountryFactor Decimal? @db.Decimal(5, 4)
+
+  // Fee snapshots for this line
+  commissionRateSnapshot Decimal @db.Decimal(5, 4)
+  commissionFeeUsd       Decimal @default(0) @db.Decimal(14, 2)
+
+  shippingProfileSnapshot ShippingProfile
+  logisticsUnitFeeUsd     Decimal         @default(0) @db.Decimal(12, 2) // per shipped unit after tier/country/min rules
+  logisticsFeeUsd         Decimal         @default(0) @db.Decimal(14, 2) // logisticsUnitFeeUsd * fulfilledQty
+
+  // Returns snapshot (simple model)
+  returnRateSnapshot Decimal @default(0) @db.Decimal(6, 4)
+  returnQty          Int     @default(0)
+  returnDeductionUsd Decimal @default(0) @db.Decimal(14, 2)
+
+  netRevenueUsd Decimal @default(0) @db.Decimal(14, 2) // line-level net (payout to seller)
+
+  createdAt DateTime @default(now())
+
+  settlement      ModaverseSettlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  productTemplate ProductTemplate     @relation(fields: [productTemplateId], references: [id], onDelete: Restrict)
+
+  @@unique([settlementId, productTemplateId])
+  @@index([settlementId])
+  @@index([productTemplateId])
+  @@index([listingId])
+  @@map("modaverse_settlement_lines")
+}
+
+/**
+ * ModaverseOrder
+ * Daily marketplace order per warehouse (one per warehouse per dayKey). Idempotent per (warehouse, dayKey).
+ */
+model ModaverseOrder {
+  id        String @id @default(cuid())
+  companyId String
+  warehouseBuildingId String
+  dayKey    DateTime // UTC midnight
+
+  createdAt DateTime @default(now())
+
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouse CompanyBuilding @relation(fields: [warehouseBuildingId], references: [id], onDelete: Cascade)
+  items     ModaverseOrderItem[]
+
+  @@unique([warehouseBuildingId, dayKey])
+  @@index([companyId])
+  @@index([warehouseBuildingId, dayKey])
+  @@map("modaverse_orders")
+}
+
+/**
+ * ModaverseOrderItem
+ * Line item for a daily order. Stock is decremented at order creation (Step A); fulfillment (Step B) only updates qtyFulfilled/qtyShipped.
+ */
+model ModaverseOrderItem {
+  id                String @id @default(cuid())
+  orderId           String
+  productTemplateId String
+  playerProductId   String?
+  listingId         String?
+
+  qtyOrdered   Int
+  qtyFulfilled Int @default(0)
+  qtyShipped   Int @default(0)
+
+  sortIndex Int @default(0) // FIFO fulfillment: order by order.dayKey asc, sortIndex asc
+
+  salePriceUsd Decimal? @db.Decimal(12, 2) // snapshot at order time
+
+  createdAt DateTime @default(now())
+
+  order           ModaverseOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productTemplate ProductTemplate  @relation(fields: [productTemplateId], references: [id], onDelete: Restrict)
+  playerProduct   PlayerProduct?   @relation(fields: [playerProductId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([orderId, sortIndex])
+  @@index([productTemplateId])
+  @@index([playerProductId])
+  @@index([listingId])
+  @@map("modaverse_order_items")
+}
+
+/**
+ * ==================== WHOLESALE (Fast supply via DesignStudio) ====================
+ */
+
+model WholesaleOrder {
+  id        String @id @default(cuid())
+  companyId String
+
+  /**
+   * V02 rename:
+   * marketHubBuildingId -> warehouseBuildingId
+   * still points to CompanyBuilding (role=WAREHOUSE)
+   */
+  warehouseBuildingId String
+
+  /// DesignStudio as supplier for fast supply; unit cost = ProductTemplate.baseCost * DesignStudio.fastSupplyMultiplier
+  studioId String
+
+  status WholesaleOrderStatus @default(DRAFT)
+
+  totalCost   Decimal @db.Decimal(12, 2)
+  vat         Decimal @db.Decimal(12, 2)
+  totalAmount Decimal @db.Decimal(12, 2)
+
+  awardXp Int @default(100)
+
+  paidAt      DateTime?
+  cancelledAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouse CompanyBuilding @relation(fields: [warehouseBuildingId], references: [id], onDelete: Cascade)
+  studio    DesignStudio    @relation(fields: [studioId], references: [id], onDelete: Restrict)
+
+  lines WholesaleOrderLine[]
+
+  @@index([companyId, status])
+  @@index([warehouseBuildingId, status])
+  @@index([studioId])
+  @@map("wholesale_orders")
+}
+
+model WholesaleOrderLine {
+  id                String @id @default(cuid())
+  orderId           String
+  productTemplateId String
+
+  // snapshot (order anındaki ürün bilgisi)
+  productCode String
+  productName String
+
+  qty       Int
+  unitCost  Decimal @db.Decimal(12, 2)
+  lineTotal Decimal @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+
+  order           WholesaleOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productTemplate ProductTemplate @relation(fields: [productTemplateId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([productTemplateId])
+  @@map("wholesale_order_lines")
+}
+
+/**
+ * ==================== INVENTORY ARCHIVE + SUMMARY ====================
+ * dayKey = UTC midnight game day key
+ */
+
+model InventoryMovementArchive {
+  id                String @id @default(cuid())
+  companyBuildingId String
+  productTemplateId String
+
+  movementType InventoryMovementType
+  sourceType   InventorySourceType
+  sourceRefId  String?
+
+  qtyChange Int
+  unitCost  Decimal? @db.Decimal(12, 2)
+
+  dayKey    DateTime // UTC midnight game day key
+  createdAt DateTime
+
+  // archive metadata
+  archivedAt DateTime @default(now())
+
+  companyBuilding CompanyBuilding @relation("InventoryMovementsArchive", fields: [companyBuildingId], references: [id], onDelete: Cascade)
+  productTemplate ProductTemplate @relation(fields: [productTemplateId], references: [id], onDelete: Restrict)
+
+  @@index([companyBuildingId, dayKey])
+  @@index([companyBuildingId, productTemplateId, dayKey])
+  @@index([productTemplateId, dayKey])
+  @@index([sourceType, sourceRefId])
+  @@index([archivedAt])
+  @@map("inventory_movements_archive")
+}
+
+/**
+ * Weekly summary for reporting.
+ * weekStartDayKey should be UTC midnight of Monday (or your chosen week start).
+ */
+model InventoryWeeklySummary {
+  id                String @id @default(cuid())
+  companyBuildingId String
+  productTemplateId String
+
+  weekStartDayKey DateTime // UTC midnight, week start
+  weekEndDayKey   DateTime // UTC midnight, inclusive end OR exclusive end - pick one rule (see notes)
+
+  qtyIn        Int @default(0)
+  qtyOut       Int @default(0)
+  netQtyChange Int @default(0)
+
+  // optional cost snapshot (keep flexible)
+  avgUnitCost Decimal? @db.Decimal(12, 2)
+
+  // audit
+  movementCount    Int       @default(0)
+  lastSourceDayKey DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  companyBuilding CompanyBuilding @relation("InventoryWeeklySummaries", fields: [companyBuildingId], references: [id], onDelete: Cascade)
+  productTemplate ProductTemplate @relation(fields: [productTemplateId], references: [id], onDelete: Restrict)
+
+  @@unique([companyBuildingId, productTemplateId, weekStartDayKey])
+  @@index([companyBuildingId, weekStartDayKey])
+  @@index([productTemplateId, weekStartDayKey])
+  @@index([weekStartDayKey])
+  @@map("inventory_weekly_summaries")
+}
+
+model BuildingInventoryItem {
+  id                String  @id @default(cuid())
+  companyBuildingId String
+  productTemplateId String
+  playerProductId   String? // Link to PlayerProduct for easier access
+
+  qtyOnHand    Int
+  qtyReserved  Int     @default(0)
+  avgUnitCost  Decimal @db.Decimal(12, 2)
+  lastUnitCost Decimal @db.Decimal(12, 2)
+
+  isArchived Boolean   @default(false)
+  archivedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  companyBuilding CompanyBuilding @relation("BuildingInventoryItems", fields: [companyBuildingId], references: [id], onDelete: Cascade)
+  productTemplate ProductTemplate @relation(fields: [productTemplateId], references: [id], onDelete: Restrict)
+  playerProduct   PlayerProduct?  @relation("InventoryPlayerProduct", fields: [playerProductId], references: [id], onDelete: SetNull)
+
+  @@unique([companyBuildingId, productTemplateId])
+  @@index([productTemplateId])
+  @@index([companyBuildingId])
+  @@index([playerProductId])
+  @@index([isArchived])
+  @@map("building_inventory_items")
+}
+
+model InventoryMovement {
+  id                String  @id @default(cuid())
+  companyBuildingId String
+  productTemplateId String
+  playerProductId   String? // Link to PlayerProduct for tracking
+
+  movementType InventoryMovementType
+  sourceType   InventorySourceType
+  sourceRefId  String?
+
+  qtyChange Int
+  unitCost  Decimal? @db.Decimal(12, 2) // IN ve OUT snapshot cost
+
+  dayKey    DateTime // UTC midnight game day key (for game-time audit logging)
+  createdAt DateTime @default(now())
+
+  companyBuilding CompanyBuilding @relation("InventoryMovements", fields: [companyBuildingId], references: [id], onDelete: Cascade)
+  productTemplate ProductTemplate @relation(fields: [productTemplateId], references: [id], onDelete: Restrict)
+  playerProduct   PlayerProduct?  @relation("MovementPlayerProduct", fields: [playerProductId], references: [id], onDelete: SetNull)
+
+  @@index([companyBuildingId, createdAt])
+  @@index([companyBuildingId, dayKey])
+  @@index([productTemplateId, createdAt])
+  @@index([playerProductId])
+  @@index([sourceType, sourceRefId])
+  @@map("inventory_movements")
+}
+
+
+/**
+ * DesignStudio for Product TEMPLATES---------------------------------------
+ */
+
+model DesignStudio {
+  id            String        @id @default(cuid())
+
+  code          String        @unique
+  title         String
+  description   String?
+  shortPitch    String?       // Short studio pitch for card preview
+
+  productSeason ProductSeason
+  styleTag      StyleTag
+  quality       ProductQuality
+
+  status        StudioStatus  @default(DRAFT)
+  studioType    StudioType    @default(VIRTUAL)
+  audience      StudioAudience?
+  externalWebsiteUrl String?  @db.VarChar(255)
+
+  coverImageUrl String?
+  sortOrder     Int           @default(0)
+
+  /// Fast supply unit cost = ProductTemplate.baseCost * fastSupplyMultiplier (per studio)
+  fastSupplyMultiplier Decimal @default(1.0) @db.Decimal(6, 3)
+
+  items         DesignStudioItem[]
+  orders        WholesaleOrder[]
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([productSeason, quality, status, sortOrder])
+  @@index([styleTag, quality, status])
+  @@map("design_studios")
+}
+model DesignStudioItem {
+  id               String          @id @default(cuid())
+
+  studioId         String
+  studio           DesignStudio    @relation(fields: [studioId], references: [id], onDelete: Cascade)
+
+  productTemplateId String
+  productTemplate   ProductTemplate @relation(fields: [productTemplateId], references: [id], onDelete: Cascade)
+
+  isFeatured       Boolean         @default(false)
+  sortOrder        Int             @default(0)
+  note             String?
+
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@unique([studioId, productTemplateId])
+  @@index([studioId, sortOrder])
+  @@index([productTemplateId])
+  @@map("design_studio_items")
+}
+model SeasonScenarioDefinition {
+  id String @id @default(cuid())
+
+  code String @unique @db.VarChar(80)   // e.g. WINTER_EARLY_A_LIGHT_SPRING
+  name String @db.VarChar(120)          // UI label
+  note String? @db.VarChar(400)
+
+  season  ProductSeason                 // WINTER/SUMMER/ALL
+  timing  SeasonTiming?                  // null for ALL
+  variant ScenarioVariant                // A/B/C
+
+  isActive Boolean @default(true)
+
+  // Relations
+  marketCurves    MarketZoneSeasonScenario[]
+  productTemplates ProductTemplate[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([season, timing, variant])
+  @@index([isActive])
+  @@map("season_scenario_definitions")
+}
+
+model MarketZoneSeasonScenario {
+  id String @id @default(cuid())
+
+  definitionId String
+  marketZone   MarketZone
+
+  // 52 ints (0..100). index 0 => week1
+  weeksJson Json
+
+  isActive Boolean @default(true)
+
+  definition SeasonScenarioDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([definitionId, marketZone], map: "uniq_definition_market_zone")
+  @@index([marketZone])
+  @@index([definitionId])
+  @@index([isActive])
+  @@map("market_zone_season_scenarios")
+}
+

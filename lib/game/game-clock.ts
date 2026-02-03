@@ -215,3 +215,18 @@ export function isPayoutDay(dayKey: Date): boolean {
   const day = normalized.getUTCDate();
   return day === 5 || day === 20;
 }
+
+/**
+ * Returns true if the given dayKey is a payout day for this company (from FinanceScheduleConfig, fallback 5/20).
+ */
+export async function isPayoutDayForCompany(companyId: string, dayKey: Date): Promise<boolean> {
+  const schedule = await prisma.financeScheduleConfig.findUnique({
+    where: { companyId },
+    select: { payoutDayOfMonth1: true, payoutDayOfMonth2: true },
+  });
+  const normalized = normalizeUtcMidnight(dayKey);
+  const day = normalized.getUTCDate();
+  const d1 = schedule?.payoutDayOfMonth1 ?? 5;
+  const d2 = schedule?.payoutDayOfMonth2 ?? 20;
+  return day === d1 || day === d2;
+}

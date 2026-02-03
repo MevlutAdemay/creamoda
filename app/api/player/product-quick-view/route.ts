@@ -46,9 +46,18 @@ export type SeasonalityByZoneItem = {
   todayScore: number;
   months: { monthIndex: number; label: string; score: number }[];
   peakMonths: string[];
+  /** True when no MarketZoneSeasonScenario row for (definitionId, marketZone). */
+  missingCurve?: boolean;
+  /** True when curve exists but weeksJson is all zeros (Excel not filled for this scenario/zone). */
+  curveAllZeros?: boolean;
   debug?: { definitionCode: string; foundCurve: boolean; weekIndex: number; dayOfYear: number };
 };
 
+/**
+ * Build seasonality per warehouse marketZone.
+ * - missingCurve: no MarketZoneSeasonScenario row for (definitionId, marketZone) — add scenario/zone in SeasonScope.xlsx and re-run seed.
+ * - curveAllZeros: row exists but weeksJson is all zeros — fill W01–W52 in Excel and re-run seed.
+ */
 async function buildSeasonalityByZone(
   definitionId: string | null,
   definitionCode: string | null,
@@ -97,6 +106,7 @@ async function buildSeasonalityByZone(
         todayScore: 0,
         months: [],
         peakMonths: [],
+        missingCurve: true,
         ...(debug ? { debug } : {}),
       });
       continue;
@@ -135,11 +145,14 @@ async function buildSeasonalityByZone(
     const peakMonths =
       peak > 0 ? months.filter((x) => x.score >= 0.9 * peak && x.score > 0).map((x) => x.label) : [];
 
+    const curveAllZeros = todayScore === 0 && peak === 0;
+
     result.push({
       marketZone,
       todayScore,
       months,
       peakMonths,
+      ...(curveAllZeros ? { curveAllZeros: true } : {}),
       ...(debug ? { debug } : {}),
     });
   }
@@ -248,7 +261,7 @@ export async function GET(req: NextRequest) {
 
     const imageUrls = (productTemplate as unknown as { productImageTemplates: { url: string }[] }).productImageTemplates.map((i) => i.url);
 
-    return NextResponse.json({
+    const responsePayload = {
       product: {
         id: productTemplate.id,
         code: productTemplate.code,
@@ -280,7 +293,16 @@ export async function GET(req: NextRequest) {
       pricing: {
         suggestedSalePriceComputed: computedSuggested,
       },
-    });
+    };
+    if (IS_DEV) {
+      (responsePayload as { _seasonDebug?: object })._seasonDebug = {
+        definitionId,
+        definitionCode,
+        warehouseZones,
+        hint: 'Check market_zone_season_scenarios for this definitionId + each marketZone; weeksJson must be non-zero.',
+      };
+    }
+    return NextResponse.json(responsePayload);
   } catch (error) {
     console.error('Error in product quick view:', error);
     return NextResponse.json(

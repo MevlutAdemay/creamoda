@@ -32,6 +32,8 @@ export type SeasonalityByZoneItem = {
   todayScore: number;
   months: { monthIndex: number; label: string; score: number }[];
   peakMonths: string[];
+  missingCurve?: boolean;
+  curveAllZeros?: boolean;
   debug?: { definitionCode: string; foundCurve: boolean; weekIndex: number; dayOfYear: number };
 };
 
@@ -127,11 +129,15 @@ export default function ProductCard({
       ? `€${product.price.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       : '—';
 
+  const selectedZoneMissingCurve = selectedZone?.missingCurve === true;
+  const selectedZoneCurveAllZeros = selectedZone?.curveAllZeros === true;
   const scoreLabel =
     todayScore !== undefined
-      ? todayScore === 0
-        ? 'Out of season'
-        : `${todayScore >= 70 ? 'Good' : todayScore >= 40 ? 'Okay' : 'Bad'} ${todayScore}`
+      ? selectedZoneMissingCurve || selectedZoneCurveAllZeros
+        ? 'No season data'
+        : todayScore === 0
+          ? 'Out of season'
+          : `${todayScore >= 70 ? 'Good' : todayScore >= 40 ? 'Okay' : 'Bad'} ${todayScore}`
       : '—';
   const hasMultipleZones = zones.length > 1;
 
@@ -153,7 +159,10 @@ export default function ProductCard({
     let cancelled = false;
     setSeasonalityLoading(true);
     fetch(`/api/player/product-quick-view?templateId=${encodeURIComponent(templateId)}`)
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Failed to load'))))
+      .then((res) => {
+        if (!res.ok) return Promise.reject(new Error(`HTTP ${res.status}`));
+        return res.json();
+      })
       .then((payload: { product?: { seasonalityByZone?: SeasonalityByZoneItem[] } }) => {
         if (cancelled) return;
         const byZone = payload?.product?.seasonalityByZone;
@@ -162,7 +171,10 @@ export default function ProductCard({
           setZoneIndex(0);
         }
       })
-      .catch(() => { if (!cancelled) setFetchedSeasonalityByZone(null); })
+      .catch((err) => {
+        if (!cancelled) setFetchedSeasonalityByZone(null);
+        if (process.env.NODE_ENV === 'development') console.warn('[ProductCard] product-quick-view failed:', err?.message ?? err);
+      })
       .finally(() => { if (!cancelled) setSeasonalityLoading(false); });
     return () => { cancelled = true; };
   }, [activeSection, seasonalityByZone, templateId]);
@@ -502,7 +514,13 @@ export default function ProductCard({
                                   {!hasMultipleZones && selectedZone && (
                                     <div className="text-[10px] text-white/70">{selectedZone.marketZone}</div>
                                   )}
-                                  
+                                  {(selectedZone?.missingCurve === true || selectedZone?.curveAllZeros === true) && (
+                                    <div className="text-[10px] text-white/60 pt-1">
+                                      {selectedZone.missingCurve
+                                        ? 'Season curve not seeded for this zone. Add rows in SeasonScope.xlsx and re-run seed.'
+                                        : 'Season curve is all zeros for this zone. Fill W01–W52 in SeasonScope.xlsx and re-run seed.'}
+                                    </div>
+                                  )}
                                   {months.length > 0 && (
                                     <>
                                       <div className="text-xs font-medium text-white/80 pt-1 border-t border-white/10">6 months</div>

@@ -1,3 +1,5 @@
+// app/api/player/collection/add/route.ts
+
 /**
  * Add product to collection (unlock and add to PlayerProduct).
  * POST body: { companyId, productTemplateId, idempotencyKey }
@@ -74,7 +76,6 @@ export async function POST(request: NextRequest) {
         }
 
         // Load template: economy fields (for overrides at creation time), unlock costs, and image templates with unlockType.
-        // Economy overrides are copied at creation time so showcase boosts, marketing power, and premium visuals can use a stable snapshot.
         const template = await tx.productTemplate.findUnique({
           where: { id: productTemplateId },
           select: {

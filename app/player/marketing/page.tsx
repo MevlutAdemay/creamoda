@@ -1,51 +1,66 @@
-// app/player/marketing/page.tsx
+import { redirect } from 'next/navigation';
+import { getServerSession } from '@/lib/auth/get-session';
+import prisma from '@/lib/prisma';
+import { CategoryLevel, BuildingRole } from '@prisma/client';
+import { getCompanyGameDayKey } from '@/lib/game/game-clock';
+import MarketingPageClient from './MarketingPageClient';
 
-'use client';
+export default async function MarketingPage() {
+  const session = await getServerSession();
+  if (!session?.user?.id) redirect('/login');
 
-import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+  const company = await prisma.company.findFirst({
+    where: { playerId: session.user.id },
+    select: { id: true },
+  });
+  if (!company) redirect('/wizard');
 
-export default function MarketingPage() {
-  const [content, setContent] = useState('');
+  const [warehouses, l2Categories, currentDayKey] = await Promise.all([
+    prisma.companyBuilding.findMany({
+      where: {
+        companyId: company.id,
+        role: BuildingRole.WAREHOUSE,
+      },
+      select: {
+        id: true,
+        name: true,
+        marketZone: true,
+        country: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    }),
+    prisma.productCategoryNode.findMany({
+      where: { level: CategoryLevel.L2, isActive: true },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        parent: { select: { name: true } },
+      },
+    }),
+    getCompanyGameDayKey(company.id),
+  ]);
+
+  const warehouseOptions = warehouses.map((w) => ({
+    id: w.id,
+    name: w.name ?? null,
+    marketZone: w.marketZone ?? null,
+    countryName: w.country?.name ?? null,
+  }));
+
+  const l2Options = l2Categories.map((c) => ({
+    id: c.id,
+    name: c.name,
+    parentName: c.parent?.name ?? null,
+  }));
+
+  const currentDayKeyStr = currentDayKey.toISOString().slice(0, 10);
 
   return (
-    <div className="relative max-h-screen bg-transparent">
-      <div className="container mx-auto p-8">
-        <div className="max-w-4xl mx-auto space-y-6">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold mb-4">Marketing Campaigns</h1>
-            <p className="text-muted-foreground">
-              Pazarlama kampanyalarınızı oluşturun, yönetin ve takip edin.
-            </p>
-          </div>
-
-          {/* Content Editor */}
-          <Card>
-            <CardHeader>
-              <CardTitle>İçerik Düzenleyici</CardTitle>
-              <CardDescription>
-                Bu sayfa için içerik düzenlemesi yapabilirsiniz. UI çalışmalarına başlamak için hazır.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="content">İçerik</Label>
-                <Textarea
-                  id="content"
-                  placeholder="Buraya içerik yazabilirsiniz..."
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  rows={12}
-                  className="min-h-[300px]"
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </div>
+    <MarketingPageClient
+      warehouses={warehouseOptions}
+      l2Categories={l2Options}
+      currentDayKey={currentDayKeyStr}
+    />
   );
 }

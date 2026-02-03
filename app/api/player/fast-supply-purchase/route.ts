@@ -24,13 +24,59 @@ import {
   InventorySourceType,
   WholesaleOrderStatus,
   BuildingRole,
+  MetricType,
   WalletCurrency,
   WalletDirection,
   WalletTxnCategory,
+  MessageCategory,
+  MessageLevel,
+  MessageKind,
+  MessageCtaType,
+  MessageTemplateCode,
+  DepartmentCode,
 } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 
 const MIN_QTY = 20;
+
+/** Bullet item for warehouse stock received message */
+type StockReceivedBullet = { productTemplateId: string; productName: string; qty: number };
+
+/**
+ * Merge bullets by productTemplateId: sum qty, keep productName from newBullets (or existing).
+ * Returns array of { productTemplateId, productName, qty } with one entry per product.
+ */
+function mergeBullets(
+  existingBullets: unknown,
+  newBullets: StockReceivedBullet[]
+): StockReceivedBullet[] {
+  const map = new Map<string, { productName: string; qty: number }>();
+
+  const existing = Array.isArray(existingBullets)
+    ? (existingBullets as StockReceivedBullet[])
+    : [];
+  for (const b of existing) {
+    if (b && typeof b.productTemplateId === 'string' && typeof b.qty === 'number') {
+      map.set(b.productTemplateId, {
+        productName: typeof b.productName === 'string' ? b.productName : '',
+        qty: b.qty,
+      });
+    }
+  }
+  for (const b of newBullets) {
+    const cur = map.get(b.productTemplateId);
+    const qty = (cur?.qty ?? 0) + b.qty;
+    map.set(b.productTemplateId, {
+      productName: b.productName ?? cur?.productName ?? '',
+      qty,
+    });
+  }
+  return Array.from(map.entries()).map(([productTemplateId, { productName, qty }]) => ({
+    productTemplateId,
+    productName,
+    qty,
+  }));
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -88,7 +134,7 @@ export async function POST(request: NextRequest) {
     const [warehouse, studio] = await Promise.all([
       prisma.companyBuilding.findFirst({
         where: { id: warehouseBuildingId, companyId },
-        select: { id: true, role: true },
+        select: { id: true, role: true, name: true, marketZone: true },
       }),
       prisma.designStudio.findUnique({
         where: { id: studioId },
@@ -339,6 +385,124 @@ export async function POST(request: NextRequest) {
               qtyChange,
               unitCost: unitCostDec,
               dayKey,
+            },
+          });
+        }
+
+        // ---- BuildingMetricState(STOCK_COUNT): currentCount = sum of qtyOnHand for this warehouse ----
+        const stockAgg = await tx.buildingInventoryItem.aggregate({
+          _sum: { qtyOnHand: true },
+          where: {
+            companyBuildingId: warehouseBuildingId,
+            isArchived: false,
+          },
+        });
+        const totalOnHand = stockAgg._sum.qtyOnHand ?? 0;
+        await tx.buildingMetricState.upsert({
+          where: {
+            buildingId_metricType: {
+              buildingId: warehouseBuildingId,
+              metricType: MetricType.STOCK_COUNT,
+            },
+          },
+          create: {
+            buildingId: warehouseBuildingId,
+            metricType: MetricType.STOCK_COUNT,
+            currentCount: totalOnHand,
+            currentLevel: 1,
+            lastEvaluatedAt: now,
+          },
+          update: {
+            currentCount: totalOnHand,
+            lastEvaluatedAt: now,
+          },
+        });
+
+        // ---- Inbox: one warehouse-scoped message per (playerId, warehouseBuildingId, dayKey) ----
+        const dayKeyStr = dayKey.toISOString().slice(0, 10);
+        const warehouseMessageDedupeKey = `WAREHOUSE_STOCK_RECEIVED:${warehouseBuildingId}:${dayKeyStr}`;
+        const warehouseName = warehouse.name ?? null;
+        const newBulletsForPurchase: StockReceivedBullet[] = (() => {
+          const byTemplate = new Map<string, { productName: string; qty: number }>();
+          for (const lp of linePayloads) {
+            const cur = byTemplate.get(lp.productTemplateId);
+            const qty = (cur?.qty ?? 0) + lp.qty;
+            byTemplate.set(lp.productTemplateId, {
+              productName: lp.productName,
+              qty,
+            });
+          }
+          return Array.from(byTemplate.entries()).map(([productTemplateId, { productName, qty }]) => ({
+            productTemplateId,
+            productName,
+            qty,
+          }));
+        })();
+        const totalQtyThisPurchase = linePayloads.reduce((s, lp) => s + lp.qty, 0);
+
+        const existingMessage = await tx.playerMessage.findUnique({
+          where: {
+            playerId_dedupeKey: { playerId: userId, dedupeKey: warehouseMessageDedupeKey },
+          },
+          select: { id: true, bullets: true, meta: true },
+        });
+
+        const contextJson = {
+          buildingRole: 'WAREHOUSE' as const,
+          buildingId: warehouseBuildingId,
+          ...(warehouseName && { buildingName: warehouseName }),
+          ...(warehouse.marketZone && { marketZone: warehouse.marketZone }),
+        };
+
+        if (existingMessage) {
+          const mergedBullets = mergeBullets(existingMessage.bullets, newBulletsForPurchase);
+          const mergedTotalQty = mergedBullets.reduce((s, b) => s + b.qty, 0);
+          const existingMeta = (existingMessage.meta as Record<string, unknown>) ?? {};
+          await tx.playerMessage.update({
+            where: { id: existingMessage.id },
+            data: {
+              bullets: mergedBullets as object,
+              meta: {
+                ...existingMeta,
+                dayKey: dayKey.toISOString(),
+                sourceType: 'FAST_SUPPLY',
+                sourceRefId: order.id,
+                totalQty: mergedTotalQty,
+              } as object,
+            },
+          });
+        } else {
+          const title = warehouseName
+            ? `[${warehouseName}] Stock received`
+            : 'Warehouse stock received';
+          const body =
+            'The following items were received by the warehouse and are ready for sale.';
+          await tx.playerMessage.create({
+            data: {
+              playerId: userId,
+              templateCode: MessageTemplateCode.WAREHOUSE_STOCK_RECEIVED,
+              category: MessageCategory.OPERATION,
+              department: DepartmentCode.WAREHOUSE,
+              level: MessageLevel.INFO,
+              kind: MessageKind.INFO,
+              title,
+              body,
+              bullets: newBulletsForPurchase as object,
+              meta: {
+                dayKey: dayKey.toISOString(),
+                sourceType: 'FAST_SUPPLY',
+                sourceRefId: order.id,
+                totalQty: totalQtyThisPurchase,
+              } as object,
+              context: contextJson as object,
+              ctaType: MessageCtaType.GO_TO_PAGE,
+              ctaLabel: 'Open warehouse stock',
+              ctaPayload: {
+                route: '/player/warehouse/stock',
+                buildingId: warehouseBuildingId,
+                tab: 'incoming',
+              } as object,
+              dedupeKey: warehouseMessageDedupeKey,
             },
           });
         }
