@@ -69,7 +69,7 @@ export function FinanceInboxPanel({ items }: Props) {
                     </div>
 
                     {/* Body: readable, line breaks preserved */}
-                    <div className="mt-1 text-sm text-muted-foreground leading-relaxed whitespace-pre-line break-words">
+                    <div className="mt-1 text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
                       {m.body}
                     </div>
                   </div>

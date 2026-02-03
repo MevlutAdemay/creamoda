@@ -72,7 +72,6 @@ export async function POST(request: NextRequest) {
     }
 
     const studio = await prisma.designStudio.create({
-      // @ts-expect-error - shortPitch exists in schema but TypeScript types may be stale
       data: {
         code,
         title,

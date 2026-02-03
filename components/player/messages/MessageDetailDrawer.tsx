@@ -97,7 +97,7 @@ export function MessageDetailDrawer({
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-4 space-y-4">
-          <div className="whitespace-pre-line break-words leading-relaxed text-sm text-foreground">
+          <div className="whitespace-pre-line leading-relaxed text-sm text-foreground">
             {message.body}
           </div>
 
