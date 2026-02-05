@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/ToastCenter';
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 import { Pencil, Trash2, Plus, Package } from 'lucide-react';
 import { MarketZone, StyleTag } from '@prisma/client';
 import { useForm } from 'react-hook-form';
@@ -155,7 +156,10 @@ export default function WholesalesClient() {
         </div>
 
         {loading ? (
-          <div className="text-sm text-muted-foreground">Loading...</div>
+          <div className="flex flex-col items-center justify-center gap-2 py-8">
+            <ModaVerseLogoLoader size={40} className="text-primary" />
+            <span className="text-sm text-muted-foreground">Loading...</span>
+          </div>
         ) : (
           <div className="border rounded-lg">
             <Table className="w-full text-xs">

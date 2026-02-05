@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -185,7 +186,12 @@ export default function StaffingRuleTab() {
   };
 
   if (loading) {
-    return <div className="text-muted-foreground">Loading rules...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-12">
+        <ModaVerseLogoLoader size={48} className="text-primary" />
+        <span className="text-muted-foreground">Loading rules...</span>
+      </div>
+    );
   }
 
   return (

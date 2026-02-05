@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ThemeToggle } from '@/components/shared/theme-toggle';
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 import Link from 'next/link';
 import { ArrowLeft, User as UserIcon } from 'lucide-react';
 
@@ -54,7 +55,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted p-4">
+    <div className="min-h-screen flex items-center justify-center bg-primary/50 p-4">
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
@@ -151,10 +152,10 @@ export default function RegisterPage() {
               disabled={loading}
             >
               {loading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                <span className="inline-flex items-center gap-2">
+                  <ModaVerseLogoLoader size={20} className="text-primary-foreground" />
                   Kayıt yapılıyor...
-                </>
+                </span>
               ) : (
                 <>
                   <UserIcon className="w-4 h-4 mr-2" />

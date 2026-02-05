@@ -7,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 import { cn } from '@/lib/utils';
 
 export type WarehouseOption = {
@@ -75,19 +76,23 @@ export function ProductCampaignForm({
       </div>
       <div className="space-y-2">
         <p className="text-sm font-medium select-none cursor-default">Product</p>
+        {loadingProducts ? (
+          <div className="flex items-center gap-2 rounded-md border bg-muted/20 px-3 py-2 max-w-md">
+            <ModaVerseLogoLoader size={22} className="text-primary shrink-0" />
+            <span className="text-sm text-muted-foreground">Loading products…</span>
+          </div>
+        ) : (
         <Select
           value={listingId || undefined}
           onValueChange={onListingChange}
-          disabled={!warehouseId || loadingProducts}
+          disabled={!warehouseId}
         >
           <SelectTrigger id="prod-campaign-product" className="w-full max-w-md" aria-label="Product">
             <SelectValue
               placeholder={
-                loadingProducts
-                  ? 'Loading…'
-                  : products.length === 0
-                    ? 'No LISTED products in this warehouse'
-                    : 'Select product'
+                products.length === 0
+                  ? 'No LISTED products in this warehouse'
+                  : 'Select product'
               }
             />
           </SelectTrigger>
@@ -99,6 +104,7 @@ export function ProductCampaignForm({
             ))}
           </SelectContent>
         </Select>
+        )}
       </div>
       {warehouseId && listingId && (
         <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-1">

@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 import {
   Building2,
   Users,
@@ -27,7 +28,6 @@ import {
   Sparkles,
   ArrowLeft,
   ArrowRight,
-  Loader2,
   AlertCircle,
   Warehouse,
 } from 'lucide-react';
@@ -152,9 +152,9 @@ export default function ReviewStep({ user, onBack, onConfirm }: ReviewStepProps)
   if (loading) {
     return (
       <Card className="w-full max-w-4xl mx-auto">
-        <CardContent className="flex items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <span className="ml-2 text-muted-foreground">Kurulum özeti yükleniyor...</span>
+        <CardContent className="flex flex-col items-center justify-center gap-2 py-16">
+          <ModaVerseLogoLoader size={48} className="text-primary" />
+          <span className="text-muted-foreground">Kurulum özeti yükleniyor...</span>
         </CardContent>
       </Card>
     );

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MessageListItem } from '@/components/player/messages/MessageListItem';
 import { MessageDetailDrawer } from '@/components/player/messages/MessageDetailDrawer';
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 import { Inbox } from 'lucide-react';
 import type { PlayerMessageItem } from '@/components/player/messages/types';
 import { useInboxUnread } from '@/stores/useInboxUnread';
@@ -88,8 +89,9 @@ export function InboxWidget() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
-              Loading…
+            <div className="flex flex-col items-center justify-center gap-2 py-6">
+              <ModaVerseLogoLoader size={36} className="text-primary" />
+              <span className="text-xs text-muted-foreground">Loading…</span>
             </div>
           ) : items.length === 0 ? (
             <p className="py-4 text-center text-xs text-muted-foreground">No messages</p>

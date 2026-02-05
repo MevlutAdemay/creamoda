@@ -12,6 +12,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/components/ui/ToastCenter';
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 import { usePlayerWallet } from '@/stores/usePlayerWallet';
 import { useInboxUnread } from '@/stores/useInboxUnread';
 
@@ -164,7 +165,10 @@ export default function AdvanceDayPanel({ open }: AdvanceDayPanelProps) {
           Current Day
         </p>
         {loading && !currentDayKey ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <div className="flex items-center gap-2">
+            <ModaVerseLogoLoader size={24} className="text-primary" />
+            <span className="text-sm text-muted-foreground">Loading…</span>
+          </div>
         ) : error && !currentDayKey ? (
           <p className="text-sm text-destructive">{error}</p>
         ) : currentDayKey ? (
@@ -186,7 +190,14 @@ export default function AdvanceDayPanel({ open }: AdvanceDayPanelProps) {
           disabled={advancing || loading}
           className="min-w-[120px]"
         >
-          {advancing ? 'Advancing…' : 'Advance 1 Day'}
+          {advancing ? (
+            <span className="inline-flex items-center gap-2">
+              <ModaVerseLogoLoader size={18} className="text-primary-foreground" />
+              Advancing…
+            </span>
+          ) : (
+            'Advance 1 Day'
+          )}
         </Button>
         <Button
           variant="secondary"
@@ -235,7 +246,10 @@ export default function AdvanceDayPanel({ open }: AdvanceDayPanelProps) {
           <p className="text-sm text-destructive mb-2">{debugError}</p>
         )}
         {debugLoading && debugRows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Loading sales debug…</p>
+          <div className="flex items-center gap-2">
+            <ModaVerseLogoLoader size={24} className="text-primary" />
+            <span className="text-sm text-muted-foreground">Loading sales debug…</span>
+          </div>
         ) : debugRows.length === 0 ? (
           <p className="text-sm text-muted-foreground">No sales log rows in the last 7 days.</p>
         ) : (

@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/components/ui/ToastCenter';
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { ProductSeason, StyleTag, ProductQuality, StudioStatus } from '@prisma/client';
 import { ImageUploadButton } from '@/components/admin/designoffice/ImageUploadButton';
@@ -198,7 +199,12 @@ export default function StudiosTab() {
   };
 
   if (loading) {
-    return <div className="text-muted-foreground">Loading studios...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-12">
+        <ModaVerseLogoLoader size={48} className="text-primary" />
+        <span className="text-muted-foreground">Loading studios...</span>
+      </div>
+    );
   }
 
   return (

@@ -18,7 +18,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Building2, MapPin, Loader2 } from 'lucide-react';
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
+import { Building2, MapPin } from 'lucide-react';
 import { useToast } from '@/components/ui/ToastCenter';
 import type { WizardUserData } from '../page';
 
@@ -235,10 +236,10 @@ export default function CompanyStep({ user, onComplete }: CompanyStepProps) {
           {/* Submit Button */}
           <Button type="submit" className="w-full" disabled={submitting}>
             {submitting ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              <span className="inline-flex items-center gap-2">
+                <ModaVerseLogoLoader size={18} className="text-primary-foreground" />
                 İşleniyor...
-              </>
+              </span>
             ) : isEditMode ? (
               'Güncelle ve Devam Et'
             ) : (

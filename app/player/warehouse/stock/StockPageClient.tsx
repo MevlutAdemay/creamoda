@@ -20,6 +20,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 
 export type InventoryItemRow = {
   id: string;
@@ -442,7 +443,10 @@ export function StockPageClient({
                     Recent movements
                   </h4>
                   {detailLoading ? (
-                    <p className="text-sm text-muted-foreground">Loading…</p>
+                    <div className="flex items-center gap-2">
+                      <ModaVerseLogoLoader size={24} className="text-primary" />
+                      <span className="text-sm text-muted-foreground">Loading…</span>
+                    </div>
                   ) : detailMovements && detailMovements.length > 0 ? (
                     <ul className="space-y-2">
                       {detailMovements.map((m) => (

@@ -3,6 +3,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 
 export type CampaignHistoryRow = {
   id: string;
@@ -88,8 +89,9 @@ export function CampaignHistoryList({
   return (
     <div className="flex flex-row flex-wrap gap-2 justify-between max-w-3xl space-y-3">
       {loading ? (
-        <div className="rounded-lg border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
-          Loading…
+        <div className="flex flex-col items-center justify-center gap-2 rounded-lg border bg-muted/30 px-4 py-6">
+          <ModaVerseLogoLoader size={40} className="text-primary" />
+          <span className="text-sm text-muted-foreground">Loading…</span>
         </div>
       ) : rows.length === 0 ? (
         <div className="rounded-lg border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">

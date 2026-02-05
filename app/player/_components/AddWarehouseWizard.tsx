@@ -25,7 +25,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Warehouse, Users, Package, DollarSign, ArrowLeft, ArrowRight, Loader2, CheckCircle } from 'lucide-react';
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
+import { MapPin, Warehouse, Users, Package, DollarSign, ArrowLeft, ArrowRight, CheckCircle } from 'lucide-react';
 import { useToast } from '@/components/ui/ToastCenter';
 import { MarketZone } from '@prisma/client';
 
@@ -325,9 +326,9 @@ export function AddWarehouseWizard({ open, onOpenChange, onSuccess }: AddWarehou
             {step === 3 && (
               <div className="space-y-4">
                 {loadingPreview ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <span className="ml-2 text-sm text-muted-foreground">Önizleme yükleniyor...</span>
+                  <div className="flex flex-col items-center justify-center gap-2 py-8">
+                    <ModaVerseLogoLoader size={40} className="text-primary" />
+                    <span className="text-sm text-muted-foreground">Önizleme yükleniyor...</span>
                   </div>
                 ) : previewError ? (
                   <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
@@ -453,10 +454,10 @@ export function AddWarehouseWizard({ open, onOpenChange, onSuccess }: AddWarehou
                         disabled={submitting || insufficientFunds}
                       >
                         {submitting ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          <span className="inline-flex items-center gap-2">
+                            <ModaVerseLogoLoader size={18} className="text-primary-foreground" />
                             İşleniyor...
-                          </>
+                          </span>
                         ) : (
                           'Kurulumu Onayla'
                         )}

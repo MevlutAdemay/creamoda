@@ -236,8 +236,7 @@ export default async function WarehouseLogisticsPage({ searchParams }: PageProps
         imageUrl: v.imageUrl,
         qty: v.qty,
       }))
-      .sort((a, b) => b.qty - a.qty)
-      .slice(0, 10);
+      .sort((a, b) => b.qty - a.qty);
   })();
 
   const todayShippedRows: LogisticsProductListRow[] = (() => {
@@ -276,8 +275,7 @@ export default async function WarehouseLogisticsPage({ searchParams }: PageProps
         imageUrl: v.imageUrl,
         qty: v.qty,
       }))
-      .sort((a, b) => b.qty - a.qty)
-      .slice(0, 10);
+      .sort((a, b) => b.qty - a.qty);
   })();
 
   let orderedUnitsToday = dailyLogsToday.reduce((s, r) => s + (r.qtyOrdered ?? 0), 0);
@@ -398,7 +396,7 @@ export default async function WarehouseLogisticsPage({ searchParams }: PageProps
     })
     .sort((a, b) => b.backlogUnits - a.backlogUnits);
 
-  const backlogRows: LogisticsProductListRow[] = backlogByProduct.slice(0, 10).map((p) => ({
+  const backlogRows: LogisticsProductListRow[] = backlogByProduct.map((p) => ({
     productTemplateId: p.productTemplateId,
     code: p.productCode,
     name: p.productName,

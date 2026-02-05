@@ -10,8 +10,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 import {
-  Loader2,
   CheckCircle2,
   XCircle,
   RefreshCw,
@@ -148,7 +148,7 @@ export default function ProcessingStep({ user, onComplete }: ProcessingStepProps
       <CardHeader className="text-center">
         <CardTitle className="flex items-center justify-center gap-2">
           {status === 'processing' && (
-            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            <ModaVerseLogoLoader size={28} className="text-primary" />
           )}
           {status === 'success' && (
             <CheckCircle2 className="w-6 h-6 text-green-500" />
@@ -206,7 +206,7 @@ export default function ProcessingStep({ user, onComplete }: ProcessingStepProps
                 {step.status === 'completed' ? (
                   <CheckCircle2 className="w-5 h-5 text-green-500" />
                 ) : step.status === 'processing' ? (
-                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                  <ModaVerseLogoLoader size={22} className="text-primary" />
                 ) : step.status === 'error' ? (
                   <XCircle className="w-5 h-5 text-destructive" />
                 ) : (

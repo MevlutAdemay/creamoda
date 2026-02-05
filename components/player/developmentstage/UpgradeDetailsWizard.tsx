@@ -1,3 +1,5 @@
+// creamoda/components/player/developmentstage/UpgradeDetailsWizard.tsx
+
 'use client';
 
 import { Fragment, useEffect, useState } from 'react';
@@ -23,6 +25,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 import { ChevronLeft, ChevronRight, Package, Users, DollarSign } from 'lucide-react';
 
 export type UpgradePreviewData = {
@@ -258,8 +261,9 @@ export function UpgradeDetailsWizard({
         <ScrollArea className="min-h-[200px] flex-1 justify-center">
           <div className="px-6 py-4">
             {loading && (
-              <div className="py-8 text-center text-sm text-muted-foreground">
-                Loading…
+              <div className="flex flex-col items-center justify-center py-8 gap-2">
+                <ModaVerseLogoLoader size={40} className="text-primary" />
+                <span className="text-sm text-muted-foreground">Loading…</span>
               </div>
             )}
 

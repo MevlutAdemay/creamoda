@@ -1,5 +1,6 @@
 'use client';
 
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 import { ProductShowcaseCard, type ShowcaseCardListing } from './ProductShowcaseCard';
 
 type ShowcaseGridProps = {
@@ -38,10 +39,9 @@ export function ShowcaseGrid({
 }: ShowcaseGridProps) {
   if (loading && listings.length === 0) {
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <CardSkeleton key={i} />
-        ))}
+      <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-muted/20 py-16 px-6">
+        <ModaVerseLogoLoader size={48} className="text-primary" />
+        <p className="text-sm text-muted-foreground">Loading listings…</p>
       </div>
     );
   }

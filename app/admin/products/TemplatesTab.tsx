@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/components/ui/ToastCenter';
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 import {
   ProductSeason,
@@ -306,7 +307,12 @@ export default function TemplatesTab() {
   };
 
   if (loading) {
-    return <div className="text-muted-foreground">Loading templates...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-12">
+        <ModaVerseLogoLoader size={48} className="text-primary" />
+        <span className="text-muted-foreground">Loading templates...</span>
+      </div>
+    );
   }
 
   return (

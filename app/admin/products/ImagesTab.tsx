@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/components/ui/ToastCenter';
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { ProductImageSlot, ProductImageUnlockType } from '@prisma/client';
 // Using regular img tag for external blob URLs
@@ -401,7 +402,10 @@ export default function ImagesTab() {
       {selectedTemplateId && (
         <>
           {loading ? (
-            <div className="text-muted-foreground">Loading images...</div>
+            <div className="flex flex-col items-center justify-center gap-2 py-8">
+              <ModaVerseLogoLoader size={40} className="text-primary" />
+              <span className="text-muted-foreground">Loading images...</span>
+            </div>
           ) : (
             <div className="border rounded-lg">
               <Table>

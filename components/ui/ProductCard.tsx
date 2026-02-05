@@ -23,6 +23,7 @@ import {
   FileSearch,
 } from 'lucide-react';
 import ProductImageCarousel from './ProductImageCarousel';
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 import type { Product } from '../../types';
 import { Button } from './button';
 import Image from 'next/image';
@@ -485,7 +486,10 @@ export default function ProductCard({
                             <div className="space-y-2">
                               
                               {seasonalityLoading ? (
-                                <div className="text-xs text-white/70">Loading…</div>
+                                <div className="flex items-center gap-2">
+                                  <ModaVerseLogoLoader size={20} className="text-white/70" />
+                                  <span className="text-xs text-white/70">Loading…</span>
+                                </div>
                               ) : zones.length === 0 ? (
                                 <div className="text-xs text-white/70">Season: Open quick view for details</div>
                               ) : (

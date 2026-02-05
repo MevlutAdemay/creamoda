@@ -1,6 +1,7 @@
 'use client';
 
 import Carousel from '@/components/ui/Carousel';
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 import { PackageCard, type PackageItem } from './PackageCard';
 
 type Props = {
@@ -24,9 +25,10 @@ export function PackageCarousel({
 
   if (loading) {
     return (
-      <p className="text-sm text-muted-foreground select-none cursor-default py-4">
-        Loading packages…
-      </p>
+      <div className="flex flex-col items-center justify-center gap-2 py-8">
+        <ModaVerseLogoLoader size={40} className="text-primary" />
+        <p className="text-sm text-muted-foreground">Loading packages…</p>
+      </div>
     );
   }
   if (sortedPackages.length === 0) {
@@ -79,9 +81,10 @@ export function PackageGrid({
 
   if (loading) {
     return (
-      <p className="text-sm text-muted-foreground select-none cursor-default py-4">
-        Loading packages…
-      </p>
+      <div className="flex flex-col items-center justify-center gap-2 py-8">
+        <ModaVerseLogoLoader size={40} className="text-primary" />
+        <p className="text-sm text-muted-foreground">Loading packages…</p>
+      </div>
     );
   }
   if (sortedPackages.length === 0) {

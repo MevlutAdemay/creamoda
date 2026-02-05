@@ -1,16 +1,18 @@
+// creamoda/app/player/warehouse/logistics/_components/PartTimePreviewCard.tsx
+
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/ToastCenter';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 import { Users } from 'lucide-react';
 import { usePlayerWallet } from '@/stores/usePlayerWallet';
 
 const CAPACITY_PER_WORKER = 20;
 const BASE_COST_PER_WORKER = 60;
-const STAFF_COUNT_MAX = 50;
 
 type PartTimePreviewCardProps = {
   buildingId: string;
@@ -35,9 +37,17 @@ export function PartTimePreviewCard({
   const toast = useToast();
   const router = useRouter();
   const { setWallet } = usePlayerWallet();
-  const [staffCount, setStaffCount] = useState(1);
+
+  const maxStaffForBacklog = Math.ceil(backlogUnitsTotal / CAPACITY_PER_WORKER);
+  const [staffCount, setStaffCount] = useState(maxStaffForBacklog);
   const [dismissed, setDismissed] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (staffCount > maxStaffForBacklog) {
+      setStaffCount(maxStaffForBacklog);
+    }
+  }, [maxStaffForBacklog, staffCount]);
 
   const extraCapacity = staffCount * CAPACITY_PER_WORKER;
   const willClear = Math.min(backlogUnitsTotal, extraCapacity);
@@ -97,18 +107,25 @@ export function PartTimePreviewCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          <span className="font-medium tabular-nums text-foreground">{backlogUnitsTotal}</span> units of backlog can be cleared with up to{' '}
+          <span className="font-medium tabular-nums text-foreground">{maxStaffForBacklog}</span> part-time staff.
+          {maxStaffForBacklog > 1 && (
+            <> You can select fewer (1–{maxStaffForBacklog - 1}) if you want.</>
+          )}
+        </p>
         <div>
           <label className="mb-1 block text-xs font-medium text-muted-foreground">
-            Staff count (0–{STAFF_COUNT_MAX})
+            Staff count (0–{maxStaffForBacklog})
           </label>
           <input
             type="number"
             min={0}
-            max={STAFF_COUNT_MAX}
+            max={maxStaffForBacklog}
             value={staffCount}
             onChange={(e) => {
               const v = parseInt(e.target.value, 10);
-              setStaffCount(Number.isNaN(v) ? 0 : Math.max(0, Math.min(STAFF_COUNT_MAX, v)));
+              setStaffCount(Number.isNaN(v) ? 0 : Math.max(0, Math.min(maxStaffForBacklog, v)));
             }}
             disabled={loading}
             className="w-full max-w-[120px] rounded-md border bg-background px-3 py-2 text-sm tabular-nums"
@@ -116,7 +133,7 @@ export function PartTimePreviewCard({
         </div>
         <div className="rounded-md border bg-background/50 p-3 text-sm">
           <p className="font-medium tabular-nums">
-            Will clear {willClear} units today
+            Today will clear {willClear} units
           </p>
           <p className="text-muted-foreground">
             Cost: {formatUsd(costUsd)}
@@ -127,7 +144,14 @@ export function PartTimePreviewCard({
             onClick={handleApply}
             disabled={loading || staffCount <= 0}
           >
-            {loading ? 'Applying…' : 'Apply Part-time'}
+            {loading ? (
+              <span className="inline-flex items-center gap-2">
+                <ModaVerseLogoLoader size={18} className="text-primary-foreground" />
+                Applying…
+              </span>
+            ) : (
+              'Apply Part-time'
+            )}
           </Button>
           <Button
             variant="outline"
@@ -135,7 +159,7 @@ export function PartTimePreviewCard({
             disabled={loading}
           >
             Not now
-          </Button>
+          </Button>       
         </div>
       </CardContent>
     </Card>

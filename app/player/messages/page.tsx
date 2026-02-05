@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { MessageListItem } from '@/components/player/messages/MessageListItem';
 import { MessageDetailDrawer } from '@/components/player/messages/MessageDetailDrawer';
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 import { Inbox } from 'lucide-react';
 import type { PlayerMessageItem } from '@/components/player/messages/types';
 import { useInboxUnread } from '@/stores/useInboxUnread';
@@ -126,8 +127,9 @@ export default function MessagesPage() {
               <Card>
                 <CardContent className="p-0">
                   {loading ? (
-                    <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-                      Loading…
+                    <div className="flex flex-col items-center justify-center gap-2 py-12">
+                      <ModaVerseLogoLoader size={48} className="text-primary" />
+                      <span className="text-sm text-muted-foreground">Loading…</span>
                     </div>
                   ) : items.length === 0 ? (
                     <div className="py-12 text-center text-sm text-muted-foreground">

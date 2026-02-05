@@ -11,6 +11,7 @@ import { redirect } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 import { Package } from 'lucide-react';
 import CategoriesTab from './CategoriesTab';
 import TemplatesTab from './TemplatesTab';
@@ -37,8 +38,9 @@ export default function AdminProductsPage() {
 
   if (authorized === null) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-2">
+        <ModaVerseLogoLoader size={56} className="text-primary" />
+        <span className="text-muted-foreground">Loading...</span>
       </div>
     );
   }

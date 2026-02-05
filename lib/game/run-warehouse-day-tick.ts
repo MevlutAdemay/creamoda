@@ -408,7 +408,18 @@ export async function runWarehouseDayTick(
       }
     }
 
-    // SALES_COUNT is daily only: set currentCount = today's shipped qty (do not accumulate)
+    // SALES_COUNT: set currentCount = ordered units today (o gün sipariş edilen toplam birim)
+    const orderedUnitsAgg = await tx.modaverseOrderItem.aggregate({
+      _sum: { qtyOrdered: true },
+      where: {
+        order: {
+          warehouseBuildingId,
+          companyId,
+          dayKey: normalizedDayKey,
+        },
+      },
+    });
+    const orderedUnitsToday = orderedUnitsAgg._sum.qtyOrdered ?? 0;
     await tx.buildingMetricState.upsert({
       where: {
         buildingId_metricType: {
@@ -419,12 +430,12 @@ export async function runWarehouseDayTick(
       create: {
         buildingId: warehouseBuildingId,
         metricType: MetricType.SALES_COUNT,
-        currentCount: shippedToday,
+        currentCount: orderedUnitsToday,
         currentLevel: 1,
         lastEvaluatedAt: new Date(),
       },
       update: {
-        currentCount: shippedToday,
+        currentCount: orderedUnitsToday,
         lastEvaluatedAt: new Date(),
       },
     });
