@@ -85,14 +85,23 @@ export function WarehouseSelect({
         <span className="truncate">{displayLabel}</span>
         <div className="flex items-center gap-1 shrink-0">
           {!isFirstWarehouse && value && (
-            <button
-              type="button"
+            <span
+              role="button"
+              tabIndex={0}
               onClick={clearToFirst}
-              className="rounded-full p-0.5 hover:bg-muted"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const firstId = warehouses[0]?.id;
+                  if (firstId) handleSelect(firstId);
+                }
+              }}
+              className="rounded-full p-0.5 hover:bg-muted cursor-pointer inline-flex"
               aria-label="Reset to first warehouse"
             >
               <X className="h-3 w-3" />
-            </button>
+            </span>
           )}
           <ChevronDown
             className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`}

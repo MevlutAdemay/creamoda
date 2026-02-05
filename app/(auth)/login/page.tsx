@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { GOOGLE_AUTH_START_URL } from '@/lib/auth/oauth-urls';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ThemeToggle } from '@/components/shared/theme-toggle';
@@ -84,7 +85,7 @@ export default function LoginPage() {
 
           <div className="mt-4">
             <a 
-              href="/api/auth/google/start"
+              href={GOOGLE_AUTH_START_URL}
               className="inline-flex h-10 w-full items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
             >
               Google ile devam et

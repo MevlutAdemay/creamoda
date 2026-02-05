@@ -66,6 +66,26 @@
   --color-mv-card-gradient: var(--mv-card-gradient);
 }
 
+/* Campaign history status: background, border, text (use -bg, -bd, -text vars) */
+.bg-mv-danger\/50 {
+  background-color: color-mix(in srgb, var(--mv-danger-bg) 50%, transparent);
+}
+.bg-mv-success\/50 {
+  background-color: color-mix(in srgb, var(--mv-success-bg) 50%, transparent);
+}
+.border-mv-danger {
+  border-color: var(--mv-danger-bd);
+}
+.border-mv-success {
+  border-color: var(--mv-success-bd);
+}
+.text-mv-danger {
+  color: var(--mv-danger-text);
+}
+.text-mv-success {
+  color: var(--mv-success-text);
+}
+
 :root {
   --radius: 0.75rem;
   --background: oklch(0.9795 0.0054 274.9668);

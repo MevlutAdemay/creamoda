@@ -74,14 +74,14 @@ export async function applyCategoryMarketing(
     categoryBoostByL2.set(l2Id, { pos: clampPct(v.pos), neg: clampPct(v.neg) });
   }
 
-  // 3) LISTED listings for this warehouse with productTemplateId
+  // 3) LISTED listings for this warehouse with productTemplateId and permanent boost
   const listings = await tx.showcaseListing.findMany({
     where: {
       companyId,
       warehouseBuildingId,
       status: ListingStatus.LISTED,
     },
-    select: { id: true, productTemplateId: true },
+    select: { id: true, productTemplateId: true, permanentPositiveBoostPct: true },
   });
   if (listings.length === 0) return;
 
@@ -103,7 +103,9 @@ export async function applyCategoryMarketing(
 
   // listingId -> L2 category id (only if we have a campaign for that L2)
   const listingIdToL2 = new Map<string, string>();
+  const listingIdToPerm = new Map<string, number>();
   for (const l of listings) {
+    listingIdToPerm.set(l.id, l.permanentPositiveBoostPct ?? 0);
     const l3Id = templateToL3.get(l.productTemplateId);
     const l2Id = l3Id ? l3ToL2.get(l3Id) : undefined;
     if (l2Id && categoryBoostByL2.has(l2Id)) {
@@ -111,11 +113,12 @@ export async function applyCategoryMarketing(
     }
   }
 
-  // 4) Group listing IDs by (positiveBoostPct, negativeBoostPct) so we can updateMany per group
+  // 4) Group listing IDs by (positiveBoostPct, negativeBoostPct); base includes permanent boost.
   const groupKeyToIds = new Map<string, string[]>();
   for (const [listingId, l2Id] of listingIdToL2) {
+    const perm = listingIdToPerm.get(listingId) ?? 0;
     const boost = categoryBoostByL2.get(l2Id)!;
-    const pos = clampPct(basePositive + boost.pos);
+    const pos = clampPct(perm + basePositive + boost.pos);
     const neg = clampPct(baseNegative + boost.neg);
     const key = `${pos},${neg}`;
     const ids = groupKeyToIds.get(key) ?? [];

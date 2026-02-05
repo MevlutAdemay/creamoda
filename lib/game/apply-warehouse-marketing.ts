@@ -45,15 +45,30 @@ export async function applyWarehouseMarketing(
   const positiveEffective = Math.min(100, Math.max(0, sumPositive));
   const negativeEffective = Math.min(100, Math.max(0, sumNegative));
 
-  await tx.showcaseListing.updateMany({
+  // Preserve permanent boost (e.g. image unlock +10): set positiveBoostPct = permanentPositiveBoostPct + marketing.
+  const listings = await tx.showcaseListing.findMany({
     where: {
       companyId,
       warehouseBuildingId,
       status: ListingStatus.LISTED,
     },
-    data: {
-      positiveBoostPct: positiveEffective,
-      negativeBoostPct: negativeEffective,
-    },
+    select: { id: true, permanentPositiveBoostPct: true },
   });
+  const groupByPerm = new Map<number, string[]>();
+  for (const l of listings) {
+    const perm = l.permanentPositiveBoostPct ?? 0;
+    const ids = groupByPerm.get(perm) ?? [];
+    ids.push(l.id);
+    groupByPerm.set(perm, ids);
+  }
+  for (const [perm, ids] of groupByPerm) {
+    const positivePct = Math.min(100, Math.max(0, perm + positiveEffective));
+    await tx.showcaseListing.updateMany({
+      where: { id: { in: ids } },
+      data: {
+        positiveBoostPct: positivePct,
+        negativeBoostPct: negativeEffective,
+      },
+    });
+  }
 }

@@ -60,7 +60,7 @@ export function DesignOfficesFilters({
   const updateFilter = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams.toString());
     
-    if (value === 'ALL Warehouse') {
+    if (value === 'ALL') {
       params.delete(key);
     } else {
       params.set(key, value);
@@ -76,23 +76,23 @@ export function DesignOfficesFilters({
   };
 
   const getStyleTagLabel = () => {
-    if (selectedStyleTag === 'ALL Warehouse') return 'All Styles';
+    if (selectedStyleTag === 'ALL') return 'All Styles';
     return humanizeLabel(selectedStyleTag);
   };
 
   const getQualityLabel = () => {
-    if (selectedQuality === 'ALL Warehouse') return 'All Qualities';
+    if (selectedQuality === 'ALL') return 'All Qualities';
     return humanizeLabel(selectedQuality);
   };
 
   const clearStyleTag = (e: React.MouseEvent) => {
     e.stopPropagation();
-    updateFilter('styleTag', 'ALL Warehouse');
+    updateFilter('styleTag', 'ALL');
   };
 
   const clearQuality = (e: React.MouseEvent) => {
     e.stopPropagation();
-    updateFilter('quality', 'ALL Warehouse');
+    updateFilter('quality', 'ALL');
   };
 
   return (
@@ -110,7 +110,7 @@ export function DesignOfficesFilters({
           >
             <span className="truncate">{getStyleTagLabel()}</span>
             <div className="flex items-center gap-1 shrink-0">
-              {selectedStyleTag !== 'ALL Warehouse' && (
+              {selectedStyleTag !== 'ALL' && (
                 <button
                   onClick={clearStyleTag}
                   className="rounded-full p-0.5 hover:bg-muted"
@@ -129,9 +129,9 @@ export function DesignOfficesFilters({
           {styleTagOpen && (
             <div className="absolute top-full left-0 mt-2 w-[200px] bg-popover border border-border rounded-md shadow-lg z-20 py-1">
               <button
-                onClick={() => updateFilter('styleTag', 'ALL Warehouse')}
+                onClick={() => updateFilter('styleTag', 'ALL')}
                 className={`w-full text-left px-4 py-2 text-sm hover:bg-accent transition-colors ${
-                  selectedStyleTag === 'ALL Warehouse'
+                  selectedStyleTag === 'ALL'
                     ? 'bg-accent font-medium'
                     : ''
                 }`}
@@ -165,7 +165,7 @@ export function DesignOfficesFilters({
           >
             <span className="truncate">{getQualityLabel()}</span>
             <div className="flex items-center gap-1 shrink-0">
-              {selectedQuality !== 'ALL Warehouse' && (
+              {selectedQuality !== 'ALL' && (
                 <button
                   onClick={clearQuality}
                   className="rounded-full p-0.5 hover:bg-muted"
@@ -184,9 +184,9 @@ export function DesignOfficesFilters({
           {qualityOpen && (
             <div className="absolute top-full left-0 mt-2 w-[200px] bg-popover border border-border rounded-md shadow-lg z-20 py-1">
               <button
-                onClick={() => updateFilter('quality', 'ALL Warehouse')}
+                onClick={() => updateFilter('quality', 'ALL')}
                 className={`w-full text-left px-4 py-2 text-sm hover:bg-accent transition-colors ${
-                  selectedQuality === 'ALL Warehouse'
+                  selectedQuality === 'ALL'
                     ? 'bg-accent font-medium'
                     : ''
                 }`}

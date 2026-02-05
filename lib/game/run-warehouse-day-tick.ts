@@ -1,3 +1,5 @@
+// lib/game/run-warehouse-day-tick.ts
+
 /**
  * Warehouse day tick: order generation (Step A) + fulfillment (Step B).
  * Step A: idempotent per (warehouse, dayKey); orders from LISTED listings only; uses listing snapshot (baseQty, price, season); DailyProductSalesLog upserted for every LISTED listing (even when orderedQty=0); out-of-stock deletes listing.
@@ -423,6 +425,35 @@ export async function runWarehouseDayTick(
       },
       update: {
         currentCount: shippedToday,
+        lastEvaluatedAt: new Date(),
+      },
+    });
+
+    // STOCK_COUNT: keep in sync with actual qtyOnHand after OUT movements (day tick complete)
+    const stockAgg = await tx.buildingInventoryItem.aggregate({
+      _sum: { qtyOnHand: true },
+      where: {
+        companyBuildingId: warehouseBuildingId,
+        isArchived: false,
+      },
+    });
+    const totalOnHand = stockAgg._sum.qtyOnHand ?? 0;
+    await tx.buildingMetricState.upsert({
+      where: {
+        buildingId_metricType: {
+          buildingId: warehouseBuildingId,
+          metricType: MetricType.STOCK_COUNT,
+        },
+      },
+      create: {
+        buildingId: warehouseBuildingId,
+        metricType: MetricType.STOCK_COUNT,
+        currentCount: totalOnHand,
+        currentLevel: 1,
+        lastEvaluatedAt: new Date(),
+      },
+      update: {
+        currentCount: totalOnHand,
         lastEvaluatedAt: new Date(),
       },
     });

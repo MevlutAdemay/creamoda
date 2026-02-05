@@ -32,7 +32,7 @@ export async function GET() {
         id: true,
         name: true,
         marketZone: true,
-        country: { select: { name: true } },
+        country: { select: { name: true, priceMultiplier: true } },
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -43,6 +43,7 @@ export async function GET() {
         name: w.name ?? null,
         marketZone: w.marketZone ?? null,
         countryName: w.country?.name ?? null,
+        priceMultiplier: w.country?.priceMultiplier != null ? Number(w.country.priceMultiplier) : 1,
       })),
     });
   } catch (e) {

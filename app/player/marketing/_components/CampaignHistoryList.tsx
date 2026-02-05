@@ -1,13 +1,7 @@
+// app/player/marketing/_components/CampaignHistoryList.tsx
+
 'use client';
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 
 export type CampaignHistoryRow = {
@@ -25,17 +19,6 @@ export type CampaignHistoryRow = {
 };
 
 type TabType = 'warehouse' | 'category' | 'product';
-
-const columns: { key: keyof CampaignHistoryRow; label: string; showFor: TabType[] }[] = [
-  { key: 'packageKeySnapshot', label: 'Package', showFor: ['warehouse', 'category', 'product'] },
-  { key: 'title', label: 'Title', showFor: ['warehouse', 'category', 'product'] },
-  { key: 'categoryName', label: 'Category', showFor: ['category'] },
-  { key: 'productName', label: 'Product', showFor: ['product'] },
-  { key: 'startDayKey', label: 'Start Date', showFor: ['warehouse', 'category', 'product'] },
-  { key: 'endDayKey', label: 'End Date', showFor: ['warehouse', 'category', 'product'] },
-  { key: 'totalCost', label: 'Total Cost', showFor: ['warehouse', 'category', 'product'] },
-  { key: 'status', label: 'Status', showFor: ['warehouse', 'category', 'product'] },
-];
 
 function formatDayKey(s: string): string {
   try {
@@ -91,64 +74,61 @@ export function CampaignHistoryList({
     return status === 'ACTIVE' || status === 'SCHEDULED' ? 'Active' : status;
   };
 
-  const visibleColumns = columns.filter((c) => c.showFor.includes(tab));
+  const getCardClasses = (row: CampaignHistoryRow) => {
+    const status = displayStatus(row.status, row.endDayKey);
+    if (status === 'Completed') {
+      return 'bg-mv-danger/50 border-mv-danger text-mv-danger';
+    }
+    if (status === 'Active') {
+      return 'bg-mv-success/50 border-mv-success text-mv-success';
+    }
+    return 'bg-muted/50';
+  };
 
   return (
-    <div className="border rounded-md overflow-x-auto max-w-3xl">
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-muted/50">
-            {visibleColumns.map((col) => (
-              <TableHead
-                key={String(col.key)}
-                className={cn(
-                  col.key === 'totalCost' && 'text-right',
-                  'select-none cursor-default'
-                )}
-              >
-                {col.label}
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {loading ? (
-            <TableRow>
-              <TableCell colSpan={visibleColumns.length} className="text-muted-foreground text-sm select-none cursor-default">
-                Loading…
-              </TableCell>
-            </TableRow>
-          ) : rows.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={visibleColumns.length} className="text-muted-foreground text-sm select-none cursor-default">
-                {emptyMessage}
-              </TableCell>
-            </TableRow>
-          ) : (
-            rows.map((row) => (
-              <TableRow key={row.id}>
-                {visibleColumns.map((col) => {
-                  const isStatus = col.key === 'status';
-                  const value = isStatus
-                    ? displayStatus(row.status, row.endDayKey)
-                    : getCellValue(row, col.key);
-                  return (
-                    <TableCell
-                      key={String(col.key)}
-                      className={cn(
-                        col.key === 'totalCost' && 'text-right',
-                        'select-none cursor-default'
-                      )}
-                    >
-                      {value}
-                    </TableCell>
-                  );
-                })}
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+    <div className="flex flex-row flex-wrap gap-2 justify-between max-w-3xl space-y-3">
+      {loading ? (
+        <div className="rounded-lg border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
+          Loading…
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="rounded-lg border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
+          {emptyMessage}
+        </div>
+      ) : (
+        rows.map((row) => {
+          const statusLabel = displayStatus(row.status, row.endDayKey);
+          return (
+            <div
+              key={row.id}
+              className={cn(
+                'rounded-lg border p-3 text-sm w-[48%]',
+                getCardClasses(row)
+              )}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                <span className="font-medium">{getCellValue(row, 'packageKeySnapshot')}</span>
+                <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-background/80">
+                  {statusLabel}
+                </span>
+              </div>
+              {(tab === 'category' && row.categoryName) || (tab === 'product' && row.productName) ? (
+                <p className="mt-1 opacity-90">
+                  {tab === 'category' ? (row.categoryName ?? '—') : (row.productName ?? '—')}
+                </p>
+              ) : null}
+              <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 opacity-90">
+                <span>Start</span>
+                <span className="font-medium">{getCellValue(row, 'startDayKey')}</span>
+                <span>End</span>
+                <span className="font-medium">{getCellValue(row, 'endDayKey')}</span>
+                <span>Cost</span>
+                <span className="font-medium">{getCellValue(row, 'totalCost')}</span>
+              </dl>
+            </div>
+          );
+        })
+      )}
     </div>
   );
 }

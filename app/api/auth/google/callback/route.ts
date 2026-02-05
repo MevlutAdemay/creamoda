@@ -21,6 +21,10 @@ function getOrigin(request: Request): string {
   return `${url.protocol}//${url.host}`;
 }
 
+function redirectWithError(origin: string, error: string) {
+  return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error)}`);
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const origin = getOrigin(request);
@@ -29,9 +33,10 @@ export async function GET(request: Request) {
 
   const cookieStore = await cookies();
   const stateCookie = cookieStore.get('oauth_state');
+  const codeVerifierCookie = cookieStore.get('oauth_code_verifier');
 
   if (!code || !state || !stateCookie || stateCookie.value !== state) {
-    return NextResponse.redirect(`${origin}/login?error=oauth_state_invalid`);
+    return redirectWithError(origin, 'oauth_state_invalid');
   }
 
   const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -39,7 +44,7 @@ export async function GET(request: Request) {
   const redirectUri = `${origin}/api/auth/google/callback`;
 
   if (!clientId || !clientSecret) {
-    return NextResponse.redirect(`${origin}/login?error=oauth_env_missing`);
+    return redirectWithError(origin, 'oauth_env_missing');
   }
 
   try {
@@ -53,12 +58,13 @@ export async function GET(request: Request) {
         client_secret: clientSecret,
         redirect_uri: redirectUri,
         grant_type: 'authorization_code',
+        ...(codeVerifierCookie?.value ? { code_verifier: codeVerifierCookie.value } : {}),
       }),
     });
 
     if (!tokenRes.ok) {
-      const err = await tokenRes.text();
-      return NextResponse.redirect(`${origin}/login?error=token_exchange_failed&detail=${encodeURIComponent(err)}`);
+      console.error('Google token exchange failed:', await tokenRes.text());
+      return redirectWithError(origin, 'token_exchange_failed');
     }
 
     const tokenJson = await tokenRes.json();
@@ -70,8 +76,8 @@ export async function GET(request: Request) {
     });
 
     if (!profileRes.ok) {
-      const err = await profileRes.text();
-      return NextResponse.redirect(`${origin}/login?error=profile_fetch_failed&detail=${encodeURIComponent(err)}`);
+      console.error('Google profile fetch failed:', await profileRes.text());
+      return redirectWithError(origin, 'profile_fetch_failed');
     }
 
     const profile = (await profileRes.json()) as {
@@ -85,7 +91,7 @@ export async function GET(request: Request) {
     };
 
     if (!profile.email) {
-      return NextResponse.redirect(`${origin}/login?error=email_missing`);
+      return redirectWithError(origin, 'email_missing');
     }
 
     // 3) Upsert user + account, ensure wallet
@@ -196,11 +202,17 @@ export async function GET(request: Request) {
 
     // Clear state cookie
     cookieStore.set('oauth_state', '', { path: '/', maxAge: 0 });
+    cookieStore.set('oauth_code_verifier', '', { path: '/', maxAge: 0 });
 
     // Redirect to player dashboard
     return NextResponse.redirect(`${origin}/player`);
   } catch (e) {
     console.error('Google OAuth callback error:', e);
-    return NextResponse.redirect(`${origin}/login?error=oauth_unknown`);
+    const maybeAny = e as any;
+    // Prisma connection errors often come as `errorCode: 'P1001'`
+    if (maybeAny?.errorCode === 'P1001' || maybeAny?.code === 'P1001') {
+      return redirectWithError(origin, 'db_unreachable');
+    }
+    return redirectWithError(origin, 'oauth_unknown');
   }
 }

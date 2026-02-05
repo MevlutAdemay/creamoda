@@ -8,6 +8,19 @@ import { getServerSession } from '@/lib/auth/get-session';
 import prisma from '@/lib/prisma';
 import { BuildingRole } from '@prisma/client';
 
+type PlayerProductWithImages = {
+  id: string;
+  images: Array<{
+    id: string;
+    isUnlocked: boolean;
+    paidXp: number | null;
+    paidDiamond: number | null;
+    unlockType: string | null;
+    urlOverride: string | null;
+    productImageTemplate: { id: string; url: string };
+  }>;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession();
@@ -71,6 +84,53 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    const playerProductIds = [...new Set(items.map((i) => i.playerProductId).filter(Boolean))] as string[];
+    let imagesByPlayerProductId: Record<string, Array<{
+      id: string;
+      isUnlocked: boolean;
+      paidXp: number | null;
+      paidDiamond: number | null;
+      unlockType: string | null;
+      urlOverride: string | null;
+      templateUrl: string | null;
+      displayUrl: string | null;
+    }>> = {};
+    if (playerProductIds.length > 0) {
+      const playerProducts = await prisma.playerProduct.findMany({
+        where: { id: { in: playerProductIds } },
+        select: {
+          id: true,
+          images: {
+            orderBy: [{ sortOrder: 'asc' }],
+            select: {
+              id: true,
+              isUnlocked: true,
+              paidXp: true,
+              paidDiamond: true,
+              unlockType: true,
+              urlOverride: true,
+              productImageTemplate: { select: { id: true, url: true } },
+            },
+          },
+        } as any,
+      });
+      imagesByPlayerProductId = Object.fromEntries(
+        playerProducts.map((pp) => [
+          pp.id,
+          (pp as unknown as PlayerProductWithImages).images.map((img) => ({
+            id: img.id,
+            isUnlocked: img.isUnlocked,
+            paidXp: img.paidXp,
+            paidDiamond: img.paidDiamond,
+            unlockType: img.unlockType,
+            urlOverride: img.urlOverride,
+            templateUrl: img.productImageTemplate?.url ?? null,
+            displayUrl: img.urlOverride ?? img.productImageTemplate?.url ?? null,
+          })),
+        ])
+      );
+    }
+
     return NextResponse.json({
       items: items.map((i) => ({
         inventoryItemId: i.id,
@@ -87,6 +147,7 @@ export async function GET(request: NextRequest) {
               productQuality: i.productTemplate.productQuality,
             }
           : null,
+        images: (i.playerProductId ? imagesByPlayerProductId[i.playerProductId] ?? [] : []),
       })),
     });
   } catch (e) {

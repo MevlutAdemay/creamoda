@@ -1,8 +1,9 @@
 /**
  * Apply permanent warehouse awareness when marketing campaigns end.
  * Call after clock advance and warehouse ticks in advance-day.
- * Finds campaigns where endDayKey === currentDayKey, upserts WarehouseAwarenessState,
- * and creates one MARKETING inbox message per campaign (dedupeKey: MKT_CAMPAIGN_END:{campaignId}).
+ * Finds campaigns where endDayKey === currentDayKey - 1 (previous day), so message and awareness
+ * run the day after the campaign ends. Upserts WarehouseAwarenessState and creates one MARKETING
+ * inbox message per campaign (dedupeKey: MKT_CAMPAIGN_END:{campaignId}).
  * Awareness is NOT stored in BuildingMetricState.
  */
 
@@ -24,13 +25,15 @@ async function getEndingCampaigns(
   companyId: string,
   currentDayKey: Date
 ): Promise<EndingCampaign[]> {
-  const dayNorm = normalizeUtcMidnight(currentDayKey);
+  const previousDay = new Date(currentDayKey);
+  previousDay.setUTCDate(previousDay.getUTCDate() - 1);
+  const previousDayNorm = normalizeUtcMidnight(previousDay);
   const results: EndingCampaign[] = [];
 
   const whCampaigns = await (prisma as any).warehouseMarketingCampaign.findMany({
     where: {
       companyId,
-      endDayKey: dayNorm,
+      endDayKey: previousDayNorm,
     },
     select: {
       id: true,
@@ -55,7 +58,7 @@ async function getEndingCampaigns(
   const catCampaigns = await (prisma as any).categoryMarketingCampaign.findMany({
     where: {
       companyId,
-      endDayKey: dayNorm,
+      endDayKey: previousDayNorm,
     },
     select: {
       id: true,
@@ -80,7 +83,7 @@ async function getEndingCampaigns(
   const prodCampaigns = await (prisma as any).productMarketingCampaign.findMany({
     where: {
       companyId,
-      endDayKey: dayNorm,
+      endDayKey: previousDayNorm,
     },
     select: {
       id: true,

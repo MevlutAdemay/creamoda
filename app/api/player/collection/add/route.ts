@@ -15,6 +15,7 @@ import {
   WalletDirection,
   WalletTxnCategory,
   ProductImageUnlockType,
+  Prisma,
 } from '@prisma/client';
 import { getCompanyGameDayKey } from '@/lib/game/game-clock';
 import { postWalletTransactionAndUpdateBalance } from '@/lib/finance/helpers';
@@ -64,6 +65,48 @@ export async function POST(request: NextRequest) {
         });
 
         if (existing) {
+          // Already in collection: still sync image snapshot (sortOrder, unlockType, costs) so fixes apply to existing rows.
+          const templateForSync = await tx.productTemplate.findUnique({
+            where: { id: productTemplateId },
+            select: {
+              productImageTemplates: {
+                orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+                select: { id: true, sortOrder: true, unlockType: true, unlockCostXp: true, unlockCostDiamond: true },
+              },
+            },
+          });
+          if (templateForSync?.productImageTemplates?.length) {
+            const now = new Date();
+            for (const img of templateForSync.productImageTemplates) {
+              const isAlwaysUnlock = img.unlockType === ProductImageUnlockType.ALWAYS;
+              await tx.playerProductImage.upsert({
+                where: {
+                  playerProductId_productImageTemplateId: {
+                    playerProductId: existing.id,
+                    productImageTemplateId: img.id,
+                  },
+                },
+                create: {
+                  playerProductId: existing.id,
+                  productImageTemplateId: img.id,
+                  sortOrder: img.sortOrder ?? 0,
+                  unlockType: img.unlockType,
+                  paidXp: img.unlockCostXp ?? null,
+                  paidDiamond: img.unlockCostDiamond ?? null,
+                  isUnlocked: isAlwaysUnlock,
+                  unlockedAt: isAlwaysUnlock ? now : null,
+                } as Prisma.PlayerProductImageUncheckedCreateInput,
+                update: {
+                  sortOrder: img.sortOrder ?? 0,
+                  unlockType: img.unlockType,
+                  paidXp: img.unlockCostXp ?? null,
+                  paidDiamond: img.unlockCostDiamond ?? null,
+                  isUnlocked: isAlwaysUnlock,
+                  unlockedAt: isAlwaysUnlock ? now : null,
+                } as Prisma.PlayerProductImageUncheckedUpdateInput,
+              });
+            }
+          }
           const wallet = await tx.playerWallet.findUnique({
             where: { userId },
             select: { balanceXp: true, balanceDiamond: true },
@@ -87,7 +130,7 @@ export async function POST(request: NextRequest) {
             unlockCostDiamond: true,
             productImageTemplates: {
               orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-              select: { id: true, unlockType: true },
+              select: { id: true, sortOrder: true, unlockType: true, unlockCostXp: true, unlockCostDiamond: true },
             },
           },
         });
@@ -147,7 +190,7 @@ export async function POST(request: NextRequest) {
         });
 
         // Create PlayerProductImage for each ProductImageTemplate (idempotent via unique [playerProductId, productImageTemplateId]).
-        // Images are NOT all unlocked by default: only unlockType === ALWAYS is unlocked; PURCHASE_* require separate unlock flow (showcase/marketing/premium).
+        // Copy unlockType and costs from template; only unlockType === ALWAYS is unlocked at add; PURCHASE_* require separate unlock flow.
         for (const img of template.productImageTemplates) {
           const isAlwaysUnlock = img.unlockType === ProductImageUnlockType.ALWAYS;
           await tx.playerProductImage.upsert({
@@ -160,19 +203,21 @@ export async function POST(request: NextRequest) {
             create: {
               playerProductId: playerProduct.id,
               productImageTemplateId: img.id,
+              sortOrder: img.sortOrder ?? 0,
+              unlockType: img.unlockType,
+              paidXp: img.unlockCostXp ?? null,
+              paidDiamond: img.unlockCostDiamond ?? null,
               isUnlocked: isAlwaysUnlock,
               unlockedAt: isAlwaysUnlock ? now : null,
-              unlockMethod: isAlwaysUnlock ? UnlockMethod.FREE : null,
-              paidXp: null,
-              paidDiamond: null,
-            },
+            } as Prisma.PlayerProductImageUncheckedCreateInput,
             update: {
+              sortOrder: img.sortOrder ?? 0,
+              unlockType: img.unlockType,
+              paidXp: img.unlockCostXp ?? null,
+              paidDiamond: img.unlockCostDiamond ?? null,
               isUnlocked: isAlwaysUnlock,
               unlockedAt: isAlwaysUnlock ? now : null,
-              unlockMethod: isAlwaysUnlock ? UnlockMethod.FREE : null,
-              paidXp: null,
-              paidDiamond: null,
-            },
+            } as Prisma.PlayerProductImageUncheckedUpdateInput,
           });
         }
 

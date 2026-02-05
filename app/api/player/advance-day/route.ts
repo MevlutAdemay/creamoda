@@ -1,3 +1,5 @@
+// app/api/player/advance-day/route.ts
+
 /**
  * Advance company game day by one day.
  * POST: runs advanceCompanyDay (tick + settlement on 5th/20th). Single entry point.

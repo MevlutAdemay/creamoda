@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createHash, randomBytes } from 'crypto';
 
 function getOrigin(request: Request): string {
   // Google Console'da tek redirect URI kullanmak için: Production URL sabit olmalı.
@@ -11,6 +12,14 @@ function getOrigin(request: Request): string {
     return `https://${process.env.VERCEL_URL}`;
   }
   return `${url.protocol}//${url.host}`;
+}
+
+function base64UrlEncode(input: Buffer) {
+  return input
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
 }
 
 export async function GET(request: Request) {
@@ -26,6 +35,10 @@ export async function GET(request: Request) {
   // CSRF koruması için state üret
   const state = crypto.randomUUID();
 
+  // PKCE (Recommended): code_verifier + code_challenge
+  const codeVerifier = base64UrlEncode(randomBytes(32));
+  const codeChallenge = base64UrlEncode(createHash('sha256').update(codeVerifier).digest());
+
   const authorizeUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   authorizeUrl.searchParams.set('client_id', clientId);
   authorizeUrl.searchParams.set('redirect_uri', redirectUri);
@@ -34,11 +47,22 @@ export async function GET(request: Request) {
   authorizeUrl.searchParams.set('access_type', 'offline');
   authorizeUrl.searchParams.set('prompt', 'consent');
   authorizeUrl.searchParams.set('state', state);
+  authorizeUrl.searchParams.set('code_challenge', codeChallenge);
+  authorizeUrl.searchParams.set('code_challenge_method', 'S256');
 
   const response = NextResponse.redirect(authorizeUrl.toString());
 
   // 10 dk geçerli state cookie
   response.cookies.set('oauth_state', state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 600,
+  });
+
+  // 10 dk geçerli PKCE verifier cookie (httpOnly)
+  response.cookies.set('oauth_code_verifier', codeVerifier, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',

@@ -54,7 +54,7 @@ export function CampaignSummary({
           <dd className="select-none cursor-default">{targetLabel(target)}</dd>
         </div>
         <div className="flex justify-between gap-4">
-          <dt className="text-muted-foreground select-none cursor-default">Affected SKUs</dt>
+          <dt className="text-muted-foreground select-none cursor-default">Affected Products</dt>
           <dd className="select-none cursor-default">{affectedSkus}</dd>
         </div>
         <div className="flex justify-between gap-4">

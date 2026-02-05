@@ -21,13 +21,15 @@ Google, redirect URI’yi **tam olarak** eşleştirir. `http` / `https`, sonunda
 
 ## 2. Vercel – Ortam değişkenleri
 
+**Önemli:** Tarayıcıda doğrudan https://creamoda.vercel.app açıp (Production) Google ile giriş yapıyorsan bile **AUTH_ORIGIN** tanımlı olmalı. Vercel bazen sunucu tarafında farklı bir URL kullanabildiği için `redirect_uri_mismatch` alınabilir; `AUTH_ORIGIN` ile her zaman aynı adres kullanılır.
+
 1. Vercel Dashboard → **creamoda** projesi → **Settings** → **Environment Variables**
 2. Şunların **Production** (ve istersen Preview) için tanımlı olduğundan emin ol:
    - `GOOGLE_CLIENT_ID` = Google Console’daki Client ID
    - `GOOGLE_CLIENT_SECRET` = Google Console’daki Client secret
    - **`AUTH_ORIGIN`** = `https://creamoda.vercel.app` (sonunda `/` olmasın)
 3. **Neden AUTH_ORIGIN?** Preview/PR deployment'lar farklı URL kullanır; `AUTH_ORIGIN` ile OAuth her zaman production URL'sine yönlenir.
-4. Değişken eklediysen veya değiştirdiysen **Redeploy** yap (Deployments → Redeploy).
+4. **Redeploy şart:** Yeni eklediğin veya değiştirdiğin env değişkenleri ancak yeni bir deploy ile canlıya alınır. **Deployments** sekmesi → en üstteki (Production) deployment → sağ üst **⋯** → **Redeploy**.
 
 ---
 

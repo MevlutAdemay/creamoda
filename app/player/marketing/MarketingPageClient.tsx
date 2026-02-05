@@ -1,10 +1,12 @@
+// app/player/marketing/MarketingPageClient.tsx
+
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ChevronDown, X } from 'lucide-react';
+import { ChevronDown, X, Store, ShoppingBag, Shirt } from 'lucide-react';
 import { CampaignHistoryList, type CampaignHistoryRow } from './_components/CampaignHistoryList';
 import { NewCampaignSheet, type CampaignTab } from './_components/NewCampaignSheet';
 import type { WarehouseOption } from './warehouse/WarehouseCampaignForm';
@@ -174,9 +176,10 @@ export default function MarketingPageClient({
             
           </div>
 
-          {hasMultipleWarehouses && (
+          
             <div className="flex flex-wrap gap-3 items-center">
               <Button onClick={() => setSheetOpen(true)}>New Campaign</Button>
+              {hasMultipleWarehouses && (
               <div className="relative" ref={warehouseDropdownRef}>
                 <Button
                   variant="outline"
@@ -206,6 +209,7 @@ export default function MarketingPageClient({
                     />
                   </div>
                 </Button>
+                
                 {warehouseDropdownOpen && (
                   <div className="absolute top-full left-0 mt-2 w-[220px] bg-popover border border-border rounded-md shadow-lg z-20 py-1">
                     <button
@@ -244,14 +248,24 @@ export default function MarketingPageClient({
                   </div>
                 )}
               </div>
+              )}
             </div>
-          )}
+          
 
-          <Tabs value={tab} onValueChange={setTab} className="w-full">
-            <TabsList className="mb-4">
-              <TabsTrigger value="warehouse">Warehouse Campaign</TabsTrigger>
-              <TabsTrigger value="category">Category Campaign</TabsTrigger>
-              <TabsTrigger value="product">Product Campaign</TabsTrigger>
+          <Tabs value={tab} onValueChange={setTab} className="w-full max-w-2xl">
+            <TabsList className="mb-4 flex w-full sm:w-auto justify-between">
+              <TabsTrigger value="warehouse" className="flex items-center gap-2 flex-1 sm:flex-initial">
+                <Store className="h-4 w-4 shrink-0" />
+                <span className="hidden sm:inline">Showcase Campaign</span>
+              </TabsTrigger>
+              <TabsTrigger value="category" className="flex items-center gap-2 flex-1 sm:flex-initial">
+                <ShoppingBag className="h-4 w-4 shrink-0" />
+                <span className="hidden sm:inline">Category Campaign</span>
+              </TabsTrigger>
+              <TabsTrigger value="product" className="flex items-center gap-2 flex-1 sm:flex-initial">
+                <Shirt className="h-4 w-4 shrink-0" />
+                <span className="hidden sm:inline">Product Campaign</span>
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="warehouse" className="space-y-6 mt-0">

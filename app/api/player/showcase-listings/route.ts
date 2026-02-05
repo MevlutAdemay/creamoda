@@ -15,6 +15,35 @@ import { getPriceMultiplier } from '@/lib/game/price-index';
 import { CategoryLevel } from '@prisma/client';
 import type { PrismaClient, Prisma } from '@prisma/client';
 
+/** Result row from GET listings query (select includes productTemplate + playerProduct.images). */
+type ListingRow = {
+  id: string;
+  marketZone: string;
+  warehouseBuildingId: string | null;
+  playerProductId: string;
+  productTemplateId: string;
+  salePrice: Decimal;
+  listPrice: Decimal | null;
+  isFeatured: boolean;
+  status: string;
+  pausedReason: string | null;
+  positiveBoostPct: number;
+  productTemplate: { name: string; code: string; suggestedSalePrice: Decimal; categoryL3Id: string } | null;
+  playerProduct: {
+    id: string;
+    images: Array<{
+      id: string;
+      isUnlocked: boolean;
+      paidXp: number | null;
+      paidDiamond: number | null;
+      unlockType: string | null;
+      urlOverride: string | null;
+      productImageTemplateId: string;
+      productImageTemplate: { id: string; url: string; unlockCostXp: number | null; unlockCostDiamond: number | null };
+    }>;
+  } | null;
+};
+
 type BandResult = {
   bandConfigId: string | null;
   baseMinDaily: number;
@@ -162,11 +191,33 @@ export async function GET(request: NextRequest) {
         isFeatured: true,
         status: true,
         pausedReason: true,
-        productTemplate: { select: { name: true, code: true } },
+        positiveBoostPct: true,
+        productTemplate: { select: { name: true, code: true, suggestedSalePrice: true, categoryL3Id: true } },
+        playerProduct: {
+          select: {
+            id: true,
+            images: {
+              orderBy: [{ sortOrder: 'asc' }],
+              select: {
+                id: true,
+                isUnlocked: true,
+                paidXp: true,
+                paidDiamond: true,
+                unlockType: true,
+                urlOverride: true,
+                productImageTemplateId: true,
+                productImageTemplate: {
+                  select: { id: true, url: true, unlockCostXp: true, unlockCostDiamond: true },
+                },
+              },
+            },
+          },
+        } as any,
       },
     });
 
     let inventoryItemIdByPlayerProductId: Record<string, string> = {};
+    let stockQtyByPlayerProductId: Record<string, number> = {};
     if (warehouseBuildingId && listings.length > 0) {
       const playerProductIds = [...new Set(listings.map((l) => l.playerProductId))];
       const inventoryItems = await prisma.buildingInventoryItem.findMany({
@@ -174,31 +225,62 @@ export async function GET(request: NextRequest) {
           companyBuildingId: warehouseBuildingId,
           playerProductId: { in: playerProductIds },
         },
-        select: { id: true, playerProductId: true },
+        select: { id: true, playerProductId: true, qtyOnHand: true },
       });
       inventoryItemIdByPlayerProductId = Object.fromEntries(
         inventoryItems
           .filter((i) => i.playerProductId != null)
           .map((i) => [i.playerProductId!, i.id])
       );
+      stockQtyByPlayerProductId = Object.fromEntries(
+        inventoryItems
+          .filter((i) => i.playerProductId != null)
+          .map((i) => [i.playerProductId!, i.qtyOnHand])
+      );
     }
 
     return NextResponse.json({
-      listings: listings.map((l) => ({
-        id: l.id,
-        marketZone: l.marketZone,
-        warehouseBuildingId: l.warehouseBuildingId,
-        playerProductId: l.playerProductId,
-        productTemplateId: l.productTemplateId,
-        salePrice: l.salePrice.toString(),
-        listPrice: l.listPrice?.toString() ?? null,
-        isFeatured: l.isFeatured,
-        status: l.status,
-        pausedReason: l.pausedReason,
-        productName: l.productTemplate?.name ?? l.productTemplateId,
-        productCode: l.productTemplate?.code,
-        inventoryItemId: inventoryItemIdByPlayerProductId[l.playerProductId] ?? null,
-      })),
+      listings: listings.map((l) => {
+        const row = l as unknown as ListingRow;
+        return {
+        id: row.id,
+        marketZone: row.marketZone,
+        warehouseBuildingId: row.warehouseBuildingId,
+        playerProductId: row.playerProductId,
+        productTemplateId: row.productTemplateId,
+        salePrice: row.salePrice.toString(),
+        listPrice: row.listPrice?.toString() ?? null,
+        isFeatured: row.isFeatured,
+        status: row.status,
+        pausedReason: row.pausedReason,
+        positiveBoostPct: row.positiveBoostPct,
+        productName: row.productTemplate?.name ?? row.productTemplateId,
+        productCode: row.productTemplate?.code,
+        suggestedSalePrice: row.productTemplate?.suggestedSalePrice?.toString() ?? null,
+        categoryNodeId: row.productTemplate?.categoryL3Id ?? null,
+        inventoryItemId: inventoryItemIdByPlayerProductId[row.playerProductId] ?? null,
+        stockQty: stockQtyByPlayerProductId[row.playerProductId] ?? null,
+        images: (row.playerProduct?.images ?? []).map((img) => {
+          const template = img.productImageTemplate;
+          const effectiveXp = img.paidXp ?? template?.unlockCostXp ?? null;
+          const effectiveDiamond = img.paidDiamond ?? template?.unlockCostDiamond ?? null;
+          return {
+            id: img.id,
+            isUnlocked: img.isUnlocked,
+            paidXp: img.paidXp,
+            paidDiamond: img.paidDiamond,
+            unlockCostXp: template?.unlockCostXp ?? null,
+            unlockCostDiamond: template?.unlockCostDiamond ?? null,
+            effectiveCostXp: effectiveXp,
+            effectiveCostDiamond: effectiveDiamond,
+            unlockType: img.unlockType,
+            urlOverride: img.urlOverride,
+            templateUrl: template?.url ?? null,
+            displayUrl: img.urlOverride ?? template?.url ?? null,
+          };
+        }),
+      };
+      }),
     });
   } catch (e) {
     console.error('[showcase-listings GET]', e);
@@ -252,7 +334,11 @@ export async function POST(request: NextRequest) {
         companyId: company.id,
         role: BuildingRole.WAREHOUSE,
       },
-      select: { id: true, marketZone: true },
+      select: {
+        id: true,
+        marketZone: true,
+        country: { select: { priceMultiplier: true } },
+      },
     });
     if (!warehouse) {
       return NextResponse.json(
@@ -327,13 +413,10 @@ export async function POST(request: NextRequest) {
       select: { id: true, boostSnapshot: true },
     });
 
-    const priceIndexRow = await prisma.marketZonePriceIndex.findUnique({
-      where: { marketZone },
-      select: { multiplier: true, isActive: true },
-    });
+    // Use same multiplier as UI: warehouse's Country.priceMultiplier (suggestedSalePrice * multiplier = normalPrice)
     const multiplier =
-      priceIndexRow?.isActive && priceIndexRow.multiplier != null
-        ? Number(priceIndexRow.multiplier)
+      warehouse.country?.priceMultiplier != null
+        ? Number(warehouse.country.priceMultiplier)
         : 1;
     const suggestedNum =
       template.suggestedSalePrice != null ? Number(template.suggestedSalePrice) : 0;

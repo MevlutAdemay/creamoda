@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
         unlockCostDiamond: true,
         productImageTemplates: {
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-          select: { id: true, unlockType: true, url: true },
+          select: { id: true, sortOrder: true, unlockType: true, unlockCostXp: true, unlockCostDiamond: true, url: true },
         },
       },
     });
@@ -274,19 +274,21 @@ export async function POST(request: NextRequest) {
               create: {
                 playerProductId: playerProduct.id,
                 productImageTemplateId: img.id,
+                sortOrder: img.sortOrder ?? 0,
+                unlockType: img.unlockType,
+                paidXp: img.unlockCostXp ?? null,
+                paidDiamond: img.unlockCostDiamond ?? null,
                 isUnlocked: isAlwaysUnlock,
                 unlockedAt: isAlwaysUnlock ? now : null,
-                unlockMethod: isAlwaysUnlock ? UnlockMethod.FREE : null,
-                paidXp: null,
-                paidDiamond: null,
-              },
+              } as any,
               update: {
+                sortOrder: img.sortOrder ?? 0,
+                unlockType: img.unlockType,
+                paidXp: img.unlockCostXp ?? null,
+                paidDiamond: img.unlockCostDiamond ?? null,
                 isUnlocked: isAlwaysUnlock,
                 unlockedAt: isAlwaysUnlock ? now : null,
-                unlockMethod: isAlwaysUnlock ? UnlockMethod.FREE : null,
-                paidXp: null,
-                paidDiamond: null,
-              },
+              } as any,
             });
           }
         }

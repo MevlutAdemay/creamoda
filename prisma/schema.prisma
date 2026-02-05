@@ -1491,12 +1491,15 @@ model PlayerProductImage {
   playerProductId        String
   productImageTemplateId String
 
+  // Copied from ProductImageTemplate at collection add (unlock rule + cost + order)
+  sortOrder   Int  @default(0)
+  unlockType  ProductImageUnlockType?
+  paidXp      Int?
+  paidDiamond Int?
+
   // Player-specific lock state
-  isUnlocked   Boolean       @default(false)
-  unlockedAt   DateTime?
-  unlockMethod UnlockMethod?
-  paidXp       Int?
-  paidDiamond  Int?
+  isUnlocked Boolean   @default(false)
+  unlockedAt DateTime?
 
   // If player buys/generates, they may get a personalized URL (optional)
   urlOverride String?
@@ -1510,6 +1513,7 @@ model PlayerProductImage {
 
   @@unique([playerProductId, productImageTemplateId])
   @@index([playerProductId])
+  @@index([playerProductId, sortOrder])
   @@index([playerProductId, isUnlocked])
   @@index([productImageTemplateId])
   @@map("player_product_images")
@@ -1559,6 +1563,8 @@ model ShowcaseListing {
   // Boost snapshot (optional)
   positiveBoostPct Int @default(0)
   negativeBoostPct Int @default(0)
+  /** Permanent positive boost (e.g. from image unlock); marketing only adds on top and never overwrites this. */
+  permanentPositiveBoostPct Int @default(0)
   boostSnapshot    Json?
 
   views Int @default(0)

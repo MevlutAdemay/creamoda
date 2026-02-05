@@ -68,3 +68,5 @@ BEGIN
     ALTER TABLE "wholesale_catalog_items" ADD CONSTRAINT "wholesale_catalog_items_productTemplateId_fkey" FOREIGN KEY ("productTemplateId") REFERENCES "product_templates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
 END $$;
+ALTER TABLE "ShowcaseListing"
+ADD COLUMN IF NOT EXISTS "permanentPositiveBoostPct" INTEGER NOT NULL DEFAULT 0;
