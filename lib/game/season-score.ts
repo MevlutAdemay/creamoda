@@ -10,7 +10,9 @@ type Tx = Parameters<Parameters<typeof import('@/lib/prisma').default.$transacti
 
 /**
  * 0-based week index 0..51 from UTC dayKey (week 1 = index 0).
- * Uses simple day-of-year / 7, clamped to 0..51.
+ * Uses day-of-year / 7, clamped to 0..51 for the calendar year.
+ * For forward scans (e.g. season remaining), use (getWeekIndex0FromDayKey(dayKey) + step) % 52
+ * so the season curve can extend past year-end into the next year.
  */
 export function getWeekIndex0FromDayKey(dayKey: Date): number {
   const startOfYear = new Date(Date.UTC(dayKey.getUTCFullYear(), 0, 1, 0, 0, 0, 0));

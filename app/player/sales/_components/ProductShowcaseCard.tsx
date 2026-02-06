@@ -40,6 +40,7 @@ export type ShowcaseCardListing = {
   marketZone: string;
   warehouseBuildingId?: string;
   categoryNodeId?: string | null;
+  categoryL2Id?: string | null;
   status: string;
   inventoryItemId?: string | null;
   positiveBoostPct?: number;

@@ -25,6 +25,7 @@ const DEFAULT_ITEMS: SidebarItem[] = [
   { key: 'marketing', title: 'Marketing Campaigns', href: '/player/marketing', imageSrc: '/menu_ico/marketing.webp', imageFit: 'contain' },
   { key: 'warehouse', title: 'Warehouse & Logistics', href: '/player/warehouse', imageSrc: '/menu_ico/warehouse.webp', imageFit: 'contain' },
   { key: 'sales', title: 'MODAVERSE Platform', href: '/player/sales', imageSrc: '/menu_ico/Sales.webp', imageFit: 'contain' },
+  { key: 'performance', title: 'Product Performance', href: '/player/performance', imageSrc: '/menu_ico/performance.webp', imageFit: 'contain' },   
   { key: 'finance', title: 'Finance Reports', href: '/player/finance', imageSrc: '/menu_ico/finance.webp', imageFit: 'contain' },
   { key: 'events', title: 'Events Calendar', href: '/player/events', imageSrc: '/menu_ico/events.webp', imageFit: 'contain' },
 ];

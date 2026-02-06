@@ -297,7 +297,7 @@ export default async function WarehousePage({ searchParams }: PageProps) {
                             </CardTitle>
                           </CardHeader>
                           <CardContent>
-                            <p className="text-2xl font-semibold tabular-nums">
+                            <p className="text-lg font-semibold tabular-nums lg:text-2xl">
                               {totalUnits.toLocaleString()}
                             </p>
                           </CardContent>
@@ -310,7 +310,7 @@ export default async function WarehousePage({ searchParams }: PageProps) {
                             </CardTitle>
                           </CardHeader>
                           <CardContent>
-                            <p className="text-2xl font-semibold tabular-nums">
+                            <p className="text-lg font-semibold tabular-nums lg:text-2xl">
                               {skuCount.toLocaleString()}
                             </p>
                           </CardContent>
@@ -323,7 +323,7 @@ export default async function WarehousePage({ searchParams }: PageProps) {
                             </CardTitle>
                           </CardHeader>
                           <CardContent>
-                            <p className="text-2xl font-semibold tabular-nums">
+                            <p className="text-lg font-semibold tabular-nums lg:text-2xl">
                               {formatCurrency(stockValue)}
                             </p>
                           </CardContent>

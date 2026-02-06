@@ -19,12 +19,12 @@ type DockItem = {
 const HUB_ITEMS: DockItem[] = [
   { key: 'messages', title: 'Inbox', href: '/player/messages', imageSrc: '/menu_ico/messages.webp', imageFit: 'contain' },
   { key: 'player', title: 'HeadQuarters', href: '/player', imageSrc: '/menu_ico/management.webp', imageFit: 'contain' },
-  { key: 'wholesale', title: 'Wholesale Marketplace', href: '/player/wholesale', imageSrc: '/menu_ico/wholesale.webp', imageFit: 'contain' },
   { key: 'designoffices', title: 'Product Pool', href: '/player/designoffices', imageSrc: '/menu_ico/design.webp', imageFit: 'contain' },
   { key: 'procurement', title: 'Merchandising', href: '/player/procurement', imageSrc: '/menu_ico/procurement.webp', imageFit: 'contain' },
   { key: 'marketing', title: 'Marketing Campaigns', href: '/player/marketing', imageSrc: '/menu_ico/marketing.webp', imageFit: 'contain' },
   { key: 'warehouse', title: 'Warehouse & Logistics', href: '/player/warehouse', imageSrc: '/menu_ico/warehouse.webp', imageFit: 'contain' },
   { key: 'sales', title: 'MODAVERSE Platform', href: '/player/sales', imageSrc: '/menu_ico/Sales.webp', imageFit: 'contain' },
+  { key: 'performance', title: 'Product Performance', href: '/player/performance', imageSrc: '/menu_ico/performance.webp', imageFit: 'contain' },   
   { key: 'finance', title: 'Finance Reports', href: '/player/finance', imageSrc: '/menu_ico/finance.webp', imageFit: 'contain' },
   { key: 'events', title: 'Events Calendar', href: '/player/events', imageSrc: '/menu_ico/events.webp', imageFit: 'contain' },
 ];

@@ -46,6 +46,7 @@ export async function POST(request: Request) {
     const staffCount = Math.max(0, Math.min(STAFF_COUNT_MAX, Number.isNaN(staffCountRaw) ? 0 : staffCountRaw));
     const clientIdempotencyKey = body.idempotencyKey?.trim() ?? null;
 
+    const TX_TIMEOUT_MS = 30_000;
     const result = await prisma.$transaction(async (tx) => {
       const company = await tx.company.findFirst({
         where: { playerId: session.user!.id },
@@ -280,7 +281,7 @@ export async function POST(request: Request) {
             }
           : null,
       };
-    });
+    }, { timeout: TX_TIMEOUT_MS });
 
     if ('error' in result && 'status' in result) {
       return NextResponse.json({ error: result.error }, { status: result.status });

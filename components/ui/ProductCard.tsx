@@ -21,12 +21,21 @@ import {
   ShoppingCartIcon,
   MousePointerClickIcon,
   FileSearch,
+  Minus,
+  Plus,
 } from 'lucide-react';
 import ProductImageCarousel from './ProductImageCarousel';
 import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';
 import type { Product } from '../../types';
 import { Button } from './button';
 import Image from 'next/image';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 export type SeasonalityByZoneItem = {
   marketZone: string;
@@ -52,7 +61,8 @@ type ProductCardProps = {
   playerDiamonds?: number;
   /** Wholesale (fast supply) unit price: baseCost * studio.fastSupplyMultiplier. When set, Price section shows Wholesale Price + add-to-cart button. */
   wholesalePrice?: number | null;
-  onAddToCart?: (p: Product) => void;
+  /** Add to fast supply cart. When qty is provided (e.g. from Unlock modal step 3), that quantity is used. */
+  onAddToCart?: (p: Product, qty?: number) => void;
   /** Called after successful add-to-collection (e.g. to refresh wallet). */
   onAddedToCollection?: (balanceXp: number, balanceDiamond: number) => void;
 };
@@ -77,6 +87,10 @@ export default function ProductCard({
   const [zoneIndex, setZoneIndex] = React.useState(0);
   const [adding, setAdding] = React.useState(false);
   const [addedToCollection, setAddedToCollection] = React.useState(false);
+  const [unlockModalOpen, setUnlockModalOpen] = React.useState(false);
+  const [unlockStep, setUnlockStep] = React.useState<1 | 2 | 3>(1);
+  const [modalZoneIndex, setModalZoneIndex] = React.useState(0);
+  const [fastOrderQty, setFastOrderQty] = React.useState(20);
 
   const isInCollection = Boolean((product as any).isInCollection) || addedToCollection;
 
@@ -154,9 +168,10 @@ export default function ProductCard({
 
   const technicalHint = product.code ? 'SKU / Code' : '—';
 
-  // Lazy fetch seasonalityByZone when SCORE tab is selected and we don't have it yet
+  // Lazy fetch seasonalityByZone when SCORE tab is selected or Unlock modal is open
   React.useEffect(() => {
-    if (activeSection !== 'SCORE' || seasonalityByZone != null || !templateId) return;
+    const shouldFetch = (activeSection === 'SCORE' || unlockModalOpen) && seasonalityByZone == null && templateId;
+    if (!shouldFetch) return;
     let cancelled = false;
     setSeasonalityLoading(true);
     fetch(`/api/player/product-quick-view?templateId=${encodeURIComponent(templateId)}`)
@@ -170,6 +185,7 @@ export default function ProductCard({
         if (Array.isArray(byZone)) {
           setFetchedSeasonalityByZone(byZone);
           setZoneIndex(0);
+          setModalZoneIndex(0);
         }
       })
       .catch((err) => {
@@ -178,7 +194,7 @@ export default function ProductCard({
       })
       .finally(() => { if (!cancelled) setSeasonalityLoading(false); });
     return () => { cancelled = true; };
-  }, [activeSection, seasonalityByZone, templateId]);
+  }, [activeSection, seasonalityByZone, templateId, unlockModalOpen]);
 
   const openInspect = () => {
     setIsInspectOpen(true);
@@ -197,13 +213,8 @@ export default function ProductCard({
 
   const goBackToMenu = () => setActiveSection('MENU');
 
-  const ctaLabel = isInCollection
-    ? 'In Collection'
-    : !isUnlockKnown
-      ? 'Add to Collection'
-      : isFreeUnlock
-        ? 'Add to Collection'
-        : 'Unlock & Add';
+  // Main CTA: only "In Collection" or "Unlock & Add". "Add to Collection" exists only inside modal Step 2.
+  const ctaLabel = isInCollection ? 'In Collection' : 'Unlock & Add';
 
   return (
     <motion.article
@@ -253,15 +264,16 @@ export default function ProductCard({
                   {/* Top controls row */}
                   <div className="flex items-center justify-between gap-2 px-3 pt-3">
                     {activeSection !== 'MENU' ? (
-                      <button
+                      <Button
                         type="button"
                         onClick={goBackToMenu}
-                        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-white/90 hover:text-white hover:bg-white/10 transition-colors"
+                        variant="default"
+                        size="icon"
+                        className="rounded-lg cursor-pointer"
                         aria-label="Back"
                       >
-                        <ChevronLeft className="h-4 w-4 text-white/80" />
-                        Back
-                      </button>
+                        <ChevronLeft className="h-4 w-4 text-primary-foreground" />
+                      </Button>
                     ) : (
                       <div className="h-7" />
                     )}
@@ -312,7 +324,7 @@ export default function ProductCard({
                               />
                               <MenuTile
                                 icon={<Receipt className="h-5 w-5 text-white/80" />}
-                                label="Price"
+                                label="Sales"
                                 hint={priceLabel}
                                 onClick={() => setActiveSection('PRICE')}
                               />
@@ -586,40 +598,13 @@ export default function ProductCard({
                         disabled={
                           isInCollection ||
                           adding ||
-                          (!isFreeUnlock && !canAffordUnlock) ||
-                          (ctaLabel !== 'In Collection' && !companyId && !onAddToCart)
+                          (!isFreeUnlock && !canAffordUnlock)
                         }
-                        onClick={async () => {
-                          if (onAddToCart) {
-                            onAddToCart(product);
-                            return;
-                          }
-                          if (isInCollection || !companyId) return;
-                          setAdding(true);
-                          try {
-                            const res = await fetch('/api/player/collection/add', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                companyId,
-                                productTemplateId: templateId,
-                                idempotencyKey: crypto.randomUUID(),
-                              }),
-                            });
-                            const data = await res.json().catch(() => ({}));
-                            if (!res.ok) {
-                              throw new Error(data?.error ?? 'Add to collection failed');
-                            }
-                            setAddedToCollection(true);
-                            if (typeof data.balanceXp === 'number' && typeof data.balanceDiamond === 'number') {
-                              onAddedToCollection?.(data.balanceXp, data.balanceDiamond);
-                            }
-                            router.refresh();
-                          } catch {
-                            // Error could be shown via toast; for now just re-enable button
-                          } finally {
-                            setAdding(false);
-                          }
+                        onClick={() => {
+                          if (isInCollection) return;
+                          setUnlockStep(1);
+                          setFastOrderQty(20);
+                          setUnlockModalOpen(true);
                         }}
                       >
                         {adding ? 'Adding…' : ctaLabel}
@@ -635,6 +620,287 @@ export default function ProductCard({
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Unlock & Add: Step Form Modal */}
+          <Dialog open={unlockModalOpen} onOpenChange={(open) => { setUnlockModalOpen(open); if (!open) setUnlockStep(1); }}>
+            <DialogContent className="sm:max-w-md max-h-[90vh] overflow-hidden flex flex-col" showCloseButton={true}>
+              <DialogHeader>
+                <DialogTitle>
+                  {unlockStep === 1 && 'Seasonal compatibility'}
+                  {unlockStep === 2 && 'Price & supply'}
+                  {unlockStep === 3 && 'Order quantity'}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="flex-1 overflow-y-auto space-y-4 py-2">
+                {unlockStep === 1 && (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      You will see the product&apos;s Seasonal Compatibility Report for the next 6 month period. Sales potential statistics are as follows.
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Make a Plan ! to Use factory production or fast supply.
+                    </p>
+                    <p className="text-sm font-medium text-primary">
+                      Avarege Factory Production Time: 4 Weeks
+                    </p>
+                    {seasonalityLoading ? (
+                      <div className="flex items-center gap-2 py-4">
+                        <ModaVerseLogoLoader size={24} className="text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">Loading…</span>
+                      </div>
+                    ) : zones.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No season data available.</p>
+                    ) : (
+                      <>
+                        {zones.length > 1 && (
+                          <div className="flex items-center justify-between gap-2 border rounded-lg p-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => setModalZoneIndex((i) => Math.max(0, i - 1))}
+                              aria-label="Previous zone"
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <span className="text-sm font-medium truncate flex-1 text-center">
+                              {zones[Math.min(modalZoneIndex, zones.length - 1)]?.marketZone ?? '—'}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => setModalZoneIndex((i) => Math.min(zones.length - 1, i + 1))}
+                              aria-label="Next zone"
+                            >
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
+                        {(() => {
+                          const mz = zones[Math.min(modalZoneIndex, zones.length - 1)];
+                          const mMonths = mz?.months ?? [];
+                          const mTodayScore = mz != null ? Math.max(0, Math.min(100, Math.round(mz.todayScore))) : undefined;
+                          return (
+                            <div className="space-y-3">
+                              {mTodayScore != null && (
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-muted-foreground">Today&apos;s score</span>
+                                  <span className="font-medium">{mTodayScore}</span>
+                                </div>
+                              )}
+                              {mMonths.length > 0 && (
+                                <div className="space-y-2">
+                                  <div className="text-xs font-medium text-muted-foreground">6 months</div>
+                                  <div className="flex flex-col gap-2">
+                                    {mMonths.map((item, idx) => {
+                                      const score = Math.max(0, Math.min(100, Number(item.score)));
+                                      return (
+                                        <div key={`${item.label}-${idx}`} className="flex items-center gap-2">
+                                          <span className="text-muted-foreground w-14 text-xs">{item.label}</span>
+                                          <div className="flex-1 h-3 rounded-full bg-muted overflow-hidden">
+                                            <div
+                                              className="h-full rounded-full bg-primary"
+                                              style={{ width: `${score}%` }}
+                                            />
+                                          </div>
+                                          <span className="text-xs w-6 tabular-nums">{score}</span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </>
+                    )}
+                  </>
+                )}
+                {unlockStep === 2 && (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      Production Cost has been calculated by the Design Department.
+                    </p>
+                    <div className="flex items-center justify-between rounded-lg border p-3">
+                      <span className="text-sm font-medium">Production Cost</span>
+                      <span className="text-sm font-semibold">
+                        {baseCost != null && baseCost !== undefined
+                          ? `€${baseCost.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          : '—'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">If you are planning factory production, add to collection.</p>
+                    {companyId && (
+                      <Button
+                        size="default"
+                        variant="default"
+                        disabled={adding}
+                        onClick={async () => {
+                          setAdding(true);
+                          try {
+                            const res = await fetch('/api/player/collection/add', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                companyId,
+                                productTemplateId: templateId,
+                                idempotencyKey: crypto.randomUUID(),
+                              }),
+                            });
+                            const data = await res.json().catch(() => ({}));
+                            if (!res.ok) throw new Error(data?.error ?? 'Add to collection failed');
+                            setAddedToCollection(true);
+                            if (typeof data.balanceXp === 'number' && typeof data.balanceDiamond === 'number') {
+                              onAddedToCollection?.(data.balanceXp, data.balanceDiamond);
+                            }
+                            router.refresh();
+                            setUnlockModalOpen(false);
+                            setUnlockStep(1);
+                          } catch {
+                            // keep modal open on error
+                          } finally {
+                            setAdding(false);
+                          }
+                        }}
+                      >
+                        {adding ? 'Adding…' : 'Add to Collection'}
+                      </Button>
+                    )}
+                    <div className="border-t my-4" />
+                    <p className="text-sm text-muted-foreground">
+                      For fast supply you can get wholesale product supply from the Design Office.
+                    </p>
+                    {wholesalePrice != null && typeof wholesalePrice === 'number' && (
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <span className="text-sm font-medium">Wholesale Price</span>
+                        <span className="text-sm font-semibold">
+                          €{wholesalePrice.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    )}
+                    {onAddToCart && wholesalePrice != null && (
+                      <Button
+                        size="default"
+                        variant="default"
+                        onClick={() => setUnlockStep(3)}
+                      >
+                        Fast Order
+                      </Button>
+                    )}
+                    {/* Suggested Sale Price by warehouse (same as PRICE section) */}
+                    {warehouses && warehouses.length > 0 && suggestedSalePrice != null && suggestedSalePrice !== undefined && (
+                      <div className="space-y-2 pt-2 border-t">
+                        <div className="text-xs font-medium text-muted-foreground">Suggested Sale Price on ModaVerse Showcase</div>
+                        <div className="space-y-2">
+                          {warehouses.map((warehouse, idx) => {
+                            if (!warehouse.country) return null;
+                            const multiplier = warehouse.country.priceMultiplier;
+                            const computedPrice = Number((suggestedSalePrice * multiplier).toFixed(2));
+                            return (
+                              <div key={idx} className="flex items-center justify-between text-sm">
+                                <div className="flex items-center gap-2">
+                                  <Image
+                                    src={`/flags/${warehouse.country.iso2.toLowerCase()}.svg`}
+                                    alt={warehouse.country.name}
+                                    width={20}
+                                    height={14}
+                                    className="rounded-sm"
+                                  />
+                                  <span className="text-muted-foreground">{warehouse.country.name}</span>
+                                </div>
+                                <span className="font-medium">
+                                  €{computedPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+                {unlockStep === 3 && (
+                  <>
+                    <p className="text-sm text-muted-foreground">Enter order quantity (min 10, step 10).</p>
+                    <div className="flex items-center justify-center gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-10 w-10"
+                        onClick={() => setFastOrderQty((q) => Math.max(10, q - 10))}
+                        aria-label="Decrease by 10"
+                      >
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                      <input
+                        type="number"
+                        min={10}
+                        step={10}
+                        value={fastOrderQty}
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value, 10);
+                          if (!Number.isNaN(v)) setFastOrderQty(Math.max(10, v));
+                          else setFastOrderQty(10);
+                        }}
+                        onBlur={(e) => {
+                          const v = parseInt(e.target.value, 10);
+                          if (Number.isNaN(v) || v < 10) setFastOrderQty(10);
+                        }}
+                        className="w-20 h-10 text-center border rounded-md text-sm font-medium tabular-nums"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-10 w-10"
+                        onClick={() => setFastOrderQty((q) => q + 10)}
+                        aria-label="Increase by 10"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                      <Button
+                      size="icon"
+                      variant="default"
+                      onClick={() => {
+                        if (onAddToCart) {
+                          onAddToCart(product, fastOrderQty);
+                          setUnlockModalOpen(false);
+                          setUnlockStep(1);
+                        }
+                      }}
+                      disabled={!onAddToCart}
+                    >
+                      <ShoppingCartIcon className="h-4 w-4" />
+                    </Button>
+                    </div>
+                   
+                  </>
+                )}
+              </div>
+              <DialogFooter className="border-t pt-4">
+                {unlockStep === 1 && (
+                  <Button onClick={() => setUnlockStep(2)} disabled={seasonalityLoading}>
+                    Next
+                  </Button>
+                )}
+                {unlockStep === 2 && (
+                  <Button variant="outline" onClick={() => setUnlockStep(1)}>
+                    Back
+                  </Button>
+                )}
+                {unlockStep === 3 && (
+                  <Button variant="outline" onClick={() => setUnlockStep(2)}>
+                    Back
+                  </Button>
+                )}
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {/* In Collection / HangTag badge - Top Right */}
           {isInCollection && (

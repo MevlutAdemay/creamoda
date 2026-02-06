@@ -1,3 +1,5 @@
+// app/player/sales/_components/InventoryGrid.tsx
+
 'use client';
 
 import { ModaVerseLogoLoader } from '@/components/ui/ModaVerseLogoLoader';

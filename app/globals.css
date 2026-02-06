@@ -86,6 +86,45 @@
   color: var(--mv-success-text);
 }
 
+/* Price evaluation message (Performance detail): arkaplan, border, text */
+.price-eval-danger {
+  background-color: var(--mv-danger-bg);
+  border: 1px solid var(--mv-danger-bd);
+  color: var(--mv-danger-text);
+}
+.price-eval-success {
+  background-color: var(--mv-success-bg);
+  border: 1px solid var(--mv-success-bd);
+  color: var(--mv-success-text);
+}
+.price-eval-warning {
+  background-color: var(--mv-warning-bg);
+  border: 1px solid var(--mv-warning-bd);
+  color: var(--mv-warning-text);
+}
+
+/* Sales band evaluation (Performance detail): same style system as price-eval-* */
+.sales-eval-danger {
+  background-color: var(--mv-danger-bg);
+  border: 1px solid var(--mv-danger-bd);
+  color: var(--mv-danger-text);
+}
+.sales-eval-warning {
+  background-color: var(--mv-warning-bg);
+  border: 1px solid var(--mv-warning-bd);
+  color: var(--mv-warning-text);
+}
+.sales-eval-success {
+  background-color: var(--mv-success-bg);
+  border: 1px solid var(--mv-success-bd);
+  color: var(--mv-success-text);
+}
+.sales-eval-neutral {
+  background-color: var(--mv-secondary-bg);
+  border: 1px solid var(--mv-secondary-bd);
+  color: var(--mv-secondary-text);
+}
+
 :root {
   --radius: 0.75rem;
   --background: oklch(0.9795 0.0054 274.9668);

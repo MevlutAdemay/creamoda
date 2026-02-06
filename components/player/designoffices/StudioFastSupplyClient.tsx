@@ -42,7 +42,8 @@ export type WarehouseOption = {
 };
 
 type FastSupplyContextValue = {
-  addToCart: (product: Product) => void;
+  /** Add product to fast supply cart. Optional qty defaults to MIN_QTY (20). */
+  addToCart: (product: Product, qty?: number) => void;
   fastSupplyMultiplier: number;
   canFastSupply: boolean;
 };
@@ -95,9 +96,10 @@ export function StudioFastSupplyClient({
   }, [warehouses]);
 
   const addToCart = React.useCallback(
-    (product: Product) => {
+    (product: Product, qty: number = MIN_QTY) => {
       const baseCost = (product as any).baseCost as number | null | undefined;
       if (baseCost == null || typeof baseCost !== 'number') return;
+      const effectiveQty = Math.max(MIN_QTY, Math.round(qty));
       const unitCost = Number((baseCost * fastSupplyMultiplier).toFixed(2));
       const mainImageUrl =
         (product as any).imageUrl ??
@@ -109,7 +111,7 @@ export function StudioFastSupplyClient({
         const existing = prev.find((l) => l.productTemplateId === product.id);
         if (existing) {
           return prev.map((l) =>
-            l.productTemplateId === product.id ? { ...l, qty: l.qty + MIN_QTY } : l
+            l.productTemplateId === product.id ? { ...l, qty: l.qty + effectiveQty } : l
           );
         }
         return [
@@ -118,7 +120,7 @@ export function StudioFastSupplyClient({
             productTemplateId: product.id,
             productCode: (product.code ?? product.id) as string,
             productName: product.name,
-            qty: MIN_QTY,
+            qty: effectiveQty,
             unitCost,
             mainImageUrl,
           },

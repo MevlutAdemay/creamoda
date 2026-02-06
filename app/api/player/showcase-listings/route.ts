@@ -28,7 +28,13 @@ type ListingRow = {
   status: string;
   pausedReason: string | null;
   positiveBoostPct: number;
-  productTemplate: { name: string; code: string; suggestedSalePrice: Decimal; categoryL3Id: string } | null;
+  productTemplate: {
+    name: string;
+    code: string;
+    suggestedSalePrice: Decimal;
+    categoryL3Id: string;
+    categoryL3?: { parentId: string | null } | null;
+  } | null;
   playerProduct: {
     id: string;
     images: Array<{
@@ -192,7 +198,15 @@ export async function GET(request: NextRequest) {
         status: true,
         pausedReason: true,
         positiveBoostPct: true,
-        productTemplate: { select: { name: true, code: true, suggestedSalePrice: true, categoryL3Id: true } },
+        productTemplate: {
+          select: {
+            name: true,
+            code: true,
+            suggestedSalePrice: true,
+            categoryL3Id: true,
+            categoryL3: { select: { parentId: true } },
+          },
+        },
         playerProduct: {
           select: {
             id: true,
@@ -258,6 +272,7 @@ export async function GET(request: NextRequest) {
         productCode: row.productTemplate?.code,
         suggestedSalePrice: row.productTemplate?.suggestedSalePrice?.toString() ?? null,
         categoryNodeId: row.productTemplate?.categoryL3Id ?? null,
+        categoryL2Id: row.productTemplate?.categoryL3?.parentId ?? null,
         inventoryItemId: inventoryItemIdByPlayerProductId[row.playerProductId] ?? null,
         stockQty: stockQtyByPlayerProductId[row.playerProductId] ?? null,
         images: (row.playerProduct?.images ?? []).map((img) => {

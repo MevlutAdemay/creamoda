@@ -91,7 +91,7 @@ export default async function WarehouseReturnsPage({ searchParams }: PageProps) 
     return (
       <div className="relative min-h-screen bg-transparent">
         <div className="container mx-auto p-4 md:p-8">
-          <div className="mx-auto max-w-5xl space-y-6">
+          <div className="mx-auto max-w-5xl space-y-6 ">
             <WarehouseHeader
               warehouses={warehouses.map((w) => ({ id: w.id, role: w.role, marketZone: w.marketZone }))}
               currentBuildingId={validBuildingId}
@@ -141,7 +141,7 @@ export default async function WarehouseReturnsPage({ searchParams }: PageProps) 
     return (
       <div className="relative min-h-screen bg-transparent">
         <div className="container mx-auto p-4 md:p-8">
-          <div className="mx-auto max-w-5xl space-y-6">
+          <div className="mx-auto max-w-5xl space-y-6 min-w-full">
             <WarehouseHeader
               warehouses={warehouses.map((w) => ({ id: w.id, role: w.role, marketZone: w.marketZone }))}
               currentBuildingId={validBuildingId}

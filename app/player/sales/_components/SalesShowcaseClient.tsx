@@ -33,6 +33,7 @@ type ListingApi = {
   listPrice?: string | null;
   suggestedSalePrice?: string | null;
   categoryNodeId?: string | null;
+  categoryL2Id?: string | null;
   status: string;
   inventoryItemId?: string | null;
   stockQty?: number | null;
@@ -89,11 +90,12 @@ function computeActiveBadges(
     });
   }
 
+  const listingL2Id = listing.categoryL2Id ?? '';
   const activeCategory = categoryCampaigns
     .filter(
       (c) =>
         c.warehouseBuildingId === whId &&
-        c.categoryNodeId === catId &&
+        (c.categoryNodeId === listingL2Id || c.categoryNodeId === catId) &&
         isActiveCampaign(c.status, c.startDayKey, c.endDayKey, dayKey)
     )
     .sort((a, b) => (b.positiveBoostPct ?? 0) - (a.positiveBoostPct ?? 0))[0];
@@ -140,6 +142,7 @@ function toListingCard(l: ListingApi): Omit<ShowcaseCardListing, 'activeBadges'>
     listPrice: l.listPrice ?? null,
     suggestedSalePrice: l.suggestedSalePrice ?? null,
     categoryNodeId: l.categoryNodeId ?? null,
+    categoryL2Id: l.categoryL2Id ?? null,
     status: l.status,
     inventoryItemId: l.inventoryItemId ?? null,
     stockQty: l.stockQty ?? null,
