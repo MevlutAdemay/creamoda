@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { getServerSession } from '@/lib/auth/get-session';
 import prisma from '@/lib/prisma';
 import { BuildingRole, MetricType, InventoryMovementType, InventorySourceType } from '@prisma/client';
@@ -31,6 +32,8 @@ function pickProductImageUrl(
 export default async function WarehouseLogisticsPage({ searchParams }: PageProps) {
   const session = await getServerSession();
   if (!session?.user?.id) redirect('/login');
+
+  const t = await getTranslations('warehouse.logistics');
 
   const company = await prisma.company.findFirst({
     where: { playerId: session.user.id },
@@ -79,10 +82,10 @@ export default async function WarehouseLogisticsPage({ searchParams }: PageProps
               title={
                 <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
                   <Truck className="h-7 w-7 text-muted-foreground" />
-                  Logistics
+                  {t('title')}
                 </h1>
               }
-              description={warehouseLabel ? `Selected: ${warehouseLabel}` : undefined}
+              description={warehouseLabel ? t('selected', { label: warehouseLabel }) : undefined}
             />
             <WarehousePlaceholder
               title="Logistics"
@@ -436,7 +439,7 @@ export default async function WarehouseLogisticsPage({ searchParams }: PageProps
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
                   <Truck className="h-7 w-7 text-muted-foreground" />
-                  Logistics
+                  {t('title')}
                 </h1>
                 <span className="inline-flex items-center gap-1 rounded-md border bg-muted/50 px-2 py-0.5 text-xs font-medium text-muted-foreground">
                   <Calendar className="h-3.5 w-3.5" />
@@ -444,7 +447,7 @@ export default async function WarehouseLogisticsPage({ searchParams }: PageProps
                 </span>
               </div>
             }
-            description={warehouseLabel ? `Selected: ${warehouseLabel}` : undefined}
+            description={warehouseLabel ? t('selected', { label: warehouseLabel }) : undefined}
           />
 
           <LogisticsSummaryCards
@@ -464,13 +467,13 @@ export default async function WarehouseLogisticsPage({ searchParams }: PageProps
 
           <div className="rounded-lg border bg-card/50 p-4 shadow-sm">
             <p className="mb-2 text-xs font-medium  tracking-wide text-muted-foreground">
-              Capacity & backlog
+              {t('capacityBacklog')}
             </p>
             <p className="text-sm">
-              Available capacity today: <span className="font-medium tabular-nums">{capacityPerDay}</span>
+              {t('availableCapacityToday')} <span className="font-medium tabular-nums">{capacityPerDay}</span>
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Remaining backlog after shipments: <span className="font-medium tabular-nums">{backlogUnitsTotal}</span>
+              {t('remainingBacklog')} <span className="font-medium tabular-nums">{backlogUnitsTotal}</span>
             </p>
           </div>
 
@@ -479,13 +482,13 @@ export default async function WarehouseLogisticsPage({ searchParams }: PageProps
           {recentDaysTrend.length > 0 && (
             <div className="rounded-lg border bg-card/50 p-4 shadow-sm">
               <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Last 7 days
+                {t('last7Days')}
               </p>
               <ul className="space-y-1 text-sm">
                 {recentDaysTrend.map((d) => (
                   <li key={d.dayKey} className="flex justify-between tabular-nums">
                     <span className="text-muted-foreground">{d.dayKey}</span>
-                    <span>Ord {d.ordered} · Ship {d.shipped}</span>
+                    <span>{t('ord')} {d.ordered} · {t('ship')} {d.shipped}</span>
                   </li>
                 ))}
               </ul>

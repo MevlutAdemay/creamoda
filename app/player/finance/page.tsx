@@ -19,6 +19,7 @@ import { ExpenseBreakdownChart } from './_components/expense-breakdown-chart';
 import { LedgerTable } from './_components/ledger-table';
 import { BuildingSummaryTable } from './_components/building-summary-table';
 import { FinanceInboxPanel } from './_components/finance-inbox-panel';
+import { getTranslations } from 'next-intl/server';
 import { DollarSign } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
@@ -336,13 +337,15 @@ export default async function FinancePage({ searchParams }: PageProps) {
     })),
   ];
 
+  const t = await getTranslations('finance');
+
   return (
     <div className="relative min-h-screen bg-transparent ">
       <div className="container mx-auto p-4 md:p-8 min-w-full">
         <div className="mx-auto max-w-6xl space-y-6 min-w-full">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <h5 className="flex items-center gap-2 text-xl font-bold tracking-tight text-foreground sm:text-lg md:text-xl">
-              Finance Operations
+              {t('title')}
             </h5>
             <FinanceFilters
               range={range}
@@ -354,7 +357,7 @@ export default async function FinancePage({ searchParams }: PageProps) {
              <Button variant="outline" size="sm" asChild>
               <Link href={getSettlementsLink(scope, scopeId)}>
                 <FileText className="h-4 w-4 mr-2" />
-                Platforn Reports
+                {t('platformReports')}
               </Link>
             </Button>
           </div>
@@ -363,8 +366,8 @@ export default async function FinancePage({ searchParams }: PageProps) {
           <div className="grid gap-6 lg:grid-cols-2">
             <Card className="border bg-card shadow-sm">
               <CardHeader>
-                <CardTitle className="text-base">Cashflow Timeline</CardTitle>
-                <CardDescription>Daily IN, OUT, and Net USD</CardDescription>
+                <CardTitle className="text-base">{t('cashflowTimeline')}</CardTitle>
+                <CardDescription>{t('cashflowDesc')}</CardDescription>
               </CardHeader>
               <CardContent>
                 <CashflowLineChart data={data.timeline} />
@@ -372,8 +375,8 @@ export default async function FinancePage({ searchParams }: PageProps) {
             </Card>
             <Card className="border bg-card shadow-sm">
               <CardHeader>
-                <CardTitle className="text-base">Expense Breakdown</CardTitle>
-                <CardDescription>OUT totals by category</CardDescription>
+                <CardTitle className="text-base">{t('expenseBreakdown')}</CardTitle>
+                <CardDescription>{t('expenseDesc')}</CardDescription>
               </CardHeader>
               <CardContent>
                 <ExpenseBreakdownChart data={data.expenseByCategory} />
@@ -383,7 +386,7 @@ export default async function FinancePage({ searchParams }: PageProps) {
 
           <div className="flex flex-col gap-4 lg:flex-row">
             <div className="min-w-0 flex-1 lg:max-w-[70%]">
-              <h2 className="text-lg font-semibold mb-2">Ledger</h2>
+              <h2 className="text-lg font-semibold mb-2">{t('ledger')}</h2>
               <LedgerTable
                 rows={data.tableRows}
                 hasMore={data.ledgerHasMore ?? false}
@@ -392,7 +395,7 @@ export default async function FinancePage({ searchParams }: PageProps) {
               />
             </div>
             <div className="shrink-0 lg:w-[30%] lg:min-w-[280px]">
-              <h2 className="text-lg font-semibold mb-2">Building Summary</h2>
+              <h2 className="text-lg font-semibold mb-2">{t('buildingSummary')}</h2>
               <BuildingSummaryTable rows={data.buildingSummary} />
             </div>
           </div>

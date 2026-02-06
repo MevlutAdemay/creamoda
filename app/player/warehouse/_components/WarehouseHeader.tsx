@@ -1,6 +1,8 @@
 // creamoda/app/player/warehouse/_components/WarehouseHeader.tsx
+'use client';
 
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { WarehouseSelect } from './WarehouseSelect';
 
@@ -37,7 +39,7 @@ export function WarehouseHeader({
   description,
   preserveParams,
 }: WarehouseHeaderProps) {
-  // Tab links use only buildingId (no sub-page params like tab=inventory).
+  const t = useTranslations('warehouse.tabs');
   const tabQuery = currentBuildingId
     ? `?buildingId=${encodeURIComponent(currentBuildingId)}`
     : '';
@@ -63,19 +65,19 @@ export function WarehouseHeader({
       <Tabs value={activeTab} className="w-full">
         <TabsList className="flex w-full flex-wrap gap-1 bg-muted/50">
           <TabsTrigger value="overview" asChild>
-            <Link href={`${BASE_PATH}${tabQuery}`}>Overview</Link>
+            <Link href={`${BASE_PATH}${tabQuery}`}>{t('overview')}</Link>
           </TabsTrigger>
           <TabsTrigger value="stock" asChild>
-            <Link href={`${BASE_PATH}/stock${tabQuery}`}>Stock</Link>
+            <Link href={`${BASE_PATH}/stock${tabQuery}`}>{t('stock')}</Link>
           </TabsTrigger>
           <TabsTrigger value="logistics" asChild>
-            <Link href={`${BASE_PATH}/logistics${tabQuery}`}>Logistics</Link>
+            <Link href={`${BASE_PATH}/logistics${tabQuery}`}>{t('logistics')}</Link>
           </TabsTrigger>
           <TabsTrigger value="returns" asChild>
-            <Link href={`${BASE_PATH}/returns${tabQuery}`}>Returns</Link>
+            <Link href={`${BASE_PATH}/returns${tabQuery}`}>{t('returns')}</Link>
           </TabsTrigger>
           <TabsTrigger value="reports" asChild>
-            <Link href={`${BASE_PATH}/reports${tabQuery}`}>Reports</Link>
+            <Link href={`${BASE_PATH}/reports${tabQuery}`}>{t('reports')}</Link>
           </TabsTrigger>
         </TabsList>
       </Tabs>

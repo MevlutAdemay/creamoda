@@ -9,6 +9,7 @@
 
 import { useState, useMemo } from 'react';
 import Image from 'next/image';
+import { useTranslations } from 'next-intl';
 import {
   Table,
   TableBody,
@@ -59,6 +60,7 @@ function SortIcon({
 }
 
 function ProductListTable({ title, rows }: { title: string; rows: LogisticsProductListRow[] }) {
+  const t = useTranslations('warehouse.logistics');
   const [sortKey, setSortKey] = useState<SortKey>('qty');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [rowsPerPage, setRowsPerPage] = useState<number>(10);
@@ -105,9 +107,9 @@ function ProductListTable({ title, rows }: { title: string; rows: LogisticsProdu
   return (
     <div className="space-y-2">
       <h3 className="text-base font-medium text-foreground">{title}</h3>
-      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>Show</span>
+          <span>{t('show')}</span>
           <Select
             value={String(rowsPerPage)}
             onValueChange={(v) => {
@@ -126,12 +128,12 @@ function ProductListTable({ title, rows }: { title: string; rows: LogisticsProdu
               ))}
             </SelectContent>
           </Select>
-          <span>rows</span>
+          <span>{t('rows')}</span>
         </div>
         {totalPages > 1 && (
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
             <span>
-              Page {pageIndex} of {totalPages}
+              {t('page', { current: pageIndex, total: totalPages })}
             </span>
             <Button
               variant="outline"
@@ -166,7 +168,7 @@ function ProductListTable({ title, rows }: { title: string; rows: LogisticsProdu
                   className="flex items-center font-medium"
                   onClick={() => toggleSort('code')}
                 >
-                  Code
+                  {t('code')}
                   <SortIcon sortKey="code" currentKey={sortKey} dir={sortDir} />
                 </button>
               </TableHead>
@@ -176,7 +178,7 @@ function ProductListTable({ title, rows }: { title: string; rows: LogisticsProdu
                   className="flex items-center font-medium"
                   onClick={() => toggleSort('name')}
                 >
-                  Name
+                  {t('name')}
                   <SortIcon sortKey="name" currentKey={sortKey} dir={sortDir} />
                 </button>
               </TableHead>
@@ -186,7 +188,7 @@ function ProductListTable({ title, rows }: { title: string; rows: LogisticsProdu
                   className="flex w-full items-center justify-end font-medium"
                   onClick={() => toggleSort('qty')}
                 >
-                  Qty
+                  {t('qty')}
                   <SortIcon sortKey="qty" currentKey={sortKey} dir={sortDir} />
                 </button>
               </TableHead>
@@ -196,7 +198,7 @@ function ProductListTable({ title, rows }: { title: string; rows: LogisticsProdu
             {paginatedRows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                  No data.
+                  {t('noData')}
                 </TableCell>
               </TableRow>
             ) : (
@@ -239,11 +241,12 @@ export function LogisticsProductLists({
   todayShipped,
   backlog,
 }: LogisticsProductListsProps) {
+  const t = useTranslations('warehouse.logistics');
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <ProductListTable title="Today's Orders" rows={todayOrders} />
-      <ProductListTable title="Today's Shipped" rows={todayShipped} />
-      <ProductListTable title="Backlog" rows={backlog} />
+      <ProductListTable title={t('todayOrders')} rows={todayOrders} />
+      <ProductListTable title={t('todayShipped')} rows={todayShipped} />
+      <ProductListTable title={t('backlog')} rows={backlog} />
     </div>
   );
 }

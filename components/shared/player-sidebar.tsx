@@ -5,6 +5,7 @@ import React, { useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
 import { useInboxUnread } from '@/stores/useInboxUnread';
 
@@ -17,6 +18,20 @@ export type SidebarItem = {
   imageFit?: 'contain' | 'cover';
 };
 
+/** Maps sidebar item key to nav translation key */
+const SIDEBAR_KEY_TO_NAV: Record<string, string> = {
+  messages: 'inbox',
+  player: 'dashboard',
+  designoffices: 'designOffices',
+  procurement: 'procurement',
+  marketing: 'marketing',
+  warehouse: 'warehouse',
+  sales: 'sales',
+  performance: 'performance',
+  finance: 'finance',
+  events: 'events',
+};
+
 const DEFAULT_ITEMS: SidebarItem[] = [
   { key: 'messages', title: 'Inbox', href: '/player/messages', imageSrc: '/menu_ico/messages.webp', imageFit: 'contain' },
   { key: 'player', title: 'HeadQuarters', href: '/player', imageSrc: '/menu_ico/management.webp', imageFit: 'contain' },
@@ -25,7 +40,7 @@ const DEFAULT_ITEMS: SidebarItem[] = [
   { key: 'marketing', title: 'Marketing Campaigns', href: '/player/marketing', imageSrc: '/menu_ico/marketing.webp', imageFit: 'contain' },
   { key: 'warehouse', title: 'Warehouse & Logistics', href: '/player/warehouse', imageSrc: '/menu_ico/warehouse.webp', imageFit: 'contain' },
   { key: 'sales', title: 'MODAVERSE Platform', href: '/player/sales', imageSrc: '/menu_ico/Sales.webp', imageFit: 'contain' },
-  { key: 'performance', title: 'Product Performance', href: '/player/performance', imageSrc: '/menu_ico/performance.webp', imageFit: 'contain' },   
+  { key: 'performance', title: 'Product Performance', href: '/player/performance', imageSrc: '/menu_ico/performance.webp', imageFit: 'contain' },
   { key: 'finance', title: 'Finance Reports', href: '/player/finance', imageSrc: '/menu_ico/finance.webp', imageFit: 'contain' },
   { key: 'events', title: 'Events Calendar', href: '/player/events', imageSrc: '/menu_ico/events.webp', imageFit: 'contain' },
 ];
@@ -55,6 +70,7 @@ export default function PlayerSidebar({
   unreadCount = 0,
 }: PlayerSidebarProps) {
   const pathname = usePathname();
+  const t = useTranslations('nav');
   const { unread, setUnread } = useInboxUnread();
   const initial = initialUnreadCount ?? unreadCount;
 
@@ -62,11 +78,17 @@ export default function PlayerSidebar({
     if (typeof initial === 'number') setUnread(initial);
   }, [initial, setUnread]);
 
+  const navKey = (key: string) => SIDEBAR_KEY_TO_NAV[key] ?? key;
+  const itemsWithTitle = items.map((item) => ({
+    ...item,
+    title: t(navKey(item.key)),
+  }));
+
   return (
     <>
       {/* Desktop/Tablet Sidebar - Navbar altında, ekranın altına kadar */}
       <aside
-        aria-label="Ana Menü Paneli"
+        aria-label={t('menuLabel')}
         className={[
           'hidden md:flex flex-col',
           'fixed left-0 top-16 bottom-0 z-40',
@@ -79,13 +101,13 @@ export default function PlayerSidebar({
         <div className="flex-1 py-4 px-2 flex flex-col">
           {/* Başlık - Sadece lg+ görünür */}
           <div className="mb-4 px-2 hidden lg:block">
-            <div className="text-xs font-semibold tracking-wide opacity-80">MENU</div>
-            <div className="text-[10px] opacity-55">ModaVerse Operations</div>
+            <div className="text-xs font-semibold tracking-wide opacity-80">{t('menuLabel')}</div>
+            <div className="text-[10px] opacity-55">{t('menuSubtitle')}</div>
           </div>
 
           {/* Menü öğeleri */}
           <div className="flex flex-col gap-1.5">
-            {items.map((item) => {
+            {itemsWithTitle.map((item) => {
               // /player için sadece tam eşleşme, diğerleri için alt sayfalar da aktif
               const active =
                 item.href === '/player'
@@ -128,13 +150,13 @@ export default function PlayerSidebar({
         {/* Kapat butonu */}
         <div className="flex items-center justify-between p-4 border-b border-border">
           <div>
-            <div className="text-xs font-semibold tracking-wide opacity-80">MENU</div>
-            <div className="text-[10px] opacity-55">ModaVerse Operations</div>
+            <div className="text-xs font-semibold tracking-wide opacity-80">{t('menuLabel')}</div>
+            <div className="text-[10px] opacity-55">{t('menuSubtitle')}</div>
           </div>
           <button
             onClick={onClose}
             className="p-2 rounded-lg hover:bg-muted transition-colors"
-            aria-label="Menüyü kapat"
+            aria-label={t('closeMenu')}
           >
             <X className="w-5 h-5" />
           </button>
@@ -143,7 +165,7 @@ export default function PlayerSidebar({
         {/* Menü öğeleri */}
         <div className="flex-1 overflow-y-auto p-3">
           <div className="flex flex-col gap-1.5">
-            {items.map((item) => {
+            {itemsWithTitle.map((item) => {
               // /player için sadece tam eşleşme, diğerleri için alt sayfalar da aktif
               const active =
                 item.href === '/player'

@@ -4,6 +4,7 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
+import { useTranslations, useLocale } from 'next-intl';
 import {
   Table,
   TableBody,
@@ -22,6 +23,7 @@ import {
 } from '@/components/ui/select';
 import { LedgerDrawer } from './ledger-drawer';
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
+import { formatCurrency } from '@/lib/format';
 
 export type LedgerRow = {
   id: string;
@@ -52,16 +54,14 @@ type SortDir = 'asc' | 'desc';
 
 const ROWS_PER_PAGE_OPTIONS = [10, 20, 50] as const;
 
-function formatUsd(n: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
-}
-
 function SortIcon({ sortKey, currentKey, dir }: { sortKey: SortKey; currentKey: SortKey; dir: SortDir }) {
   if (currentKey !== sortKey) return <ChevronsUpDown className="ml-1 h-3.5 w-3.5 opacity-50" />;
   return dir === 'asc' ? <ChevronUp className="ml-1 h-3.5 w-3.5" /> : <ChevronDown className="ml-1 h-3.5 w-3.5" />;
 }
 
 export function LedgerTable({ rows, hasMore = false, nextCursor = null, currentParams }: Props) {
+  const t = useTranslations('finance.table');
+  const locale = useLocale();
   const [selected, setSelected] = useState<LedgerRow | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('dayKey');
@@ -128,7 +128,7 @@ export function LedgerTable({ rows, hasMore = false, nextCursor = null, currentP
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>Show</span>
+            <span>{t('show')}</span>
             <Select
               value={String(rowsPerPage)}
               onValueChange={(v) => {
@@ -147,12 +147,12 @@ export function LedgerTable({ rows, hasMore = false, nextCursor = null, currentP
                 ))}
               </SelectContent>
             </Select>
-            <span>rows</span>
+            <span>{t('rows')}</span>
           </div>
           {totalPages > 1 && (
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
               <span>
-                Page {pageIndex} of {totalPages}
+                {t('page', { current: pageIndex, total: totalPages })}
               </span>
               <Button
                 variant="outline"
@@ -186,7 +186,7 @@ export function LedgerTable({ rows, hasMore = false, nextCursor = null, currentP
                       className="flex items-center font-medium"
                       onClick={() => toggleSort('dayKey')}
                     >
-                      Date
+                      {t('date')}
                       <SortIcon sortKey="dayKey" currentKey={sortKey} dir={sortDir} />
                     </button>
                   </TableHead>
@@ -196,7 +196,7 @@ export function LedgerTable({ rows, hasMore = false, nextCursor = null, currentP
                       className="flex items-center font-medium"
                       onClick={() => toggleSort('category')}
                     >
-                      Category
+                      {t('category')}
                       <SortIcon sortKey="category" currentKey={sortKey} dir={sortDir} />
                     </button>
                   </TableHead>
@@ -206,7 +206,7 @@ export function LedgerTable({ rows, hasMore = false, nextCursor = null, currentP
                       className="flex items-center font-medium"
                       onClick={() => toggleSort('direction')}
                     >
-                      Direction
+                      {t('direction')}
                       <SortIcon sortKey="direction" currentKey={sortKey} dir={sortDir} />
                     </button>
                   </TableHead>
@@ -216,7 +216,7 @@ export function LedgerTable({ rows, hasMore = false, nextCursor = null, currentP
                       className="flex items-center justify-end font-medium w-full"
                       onClick={() => toggleSort('amount')}
                     >
-                      Amount
+                      {t('amount')}
                       <SortIcon sortKey="amount" currentKey={sortKey} dir={sortDir} />
                     </button>
                   </TableHead>
@@ -226,7 +226,7 @@ export function LedgerTable({ rows, hasMore = false, nextCursor = null, currentP
                       className="flex items-center font-medium"
                       onClick={() => toggleSort('refType')}
                     >
-                      Ref Type
+                      {t('refType')}
                       <SortIcon sortKey="refType" currentKey={sortKey} dir={sortDir} />
                     </button>
                   </TableHead>
@@ -236,7 +236,7 @@ export function LedgerTable({ rows, hasMore = false, nextCursor = null, currentP
                 {paginatedRows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                      No ledger entries in the selected period.
+                      {t('empty')}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -253,7 +253,7 @@ export function LedgerTable({ rows, hasMore = false, nextCursor = null, currentP
                           {row.direction}
                         </span>
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">{formatUsd(row.amount)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatCurrency(row.amount, locale)}</TableCell>
                       <TableCell className="max-w-[140px] truncate text-muted-foreground" title={row.refType ?? ''}>
                         {row.refType ?? '—'}
                       </TableCell>
@@ -268,7 +268,7 @@ export function LedgerTable({ rows, hasMore = false, nextCursor = null, currentP
       {hasMore && loadMoreHref && (
         <div className="mt-2 flex justify-center">
           <Button variant="outline" size="sm" asChild>
-            <Link href={loadMoreHref}>Load more</Link>
+            <Link href={loadMoreHref}>{t('loadMore')}</Link>
           </Button>
         </div>
       )}

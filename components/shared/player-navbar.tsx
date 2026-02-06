@@ -3,13 +3,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations, useLocale } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Settings, DollarSign, Coins, Gem, Menu, Clock } from 'lucide-react';
 import PlayerSettings from './player-settings';
 import PlayerSidebar from './player-sidebar';
+import { LocaleSwitcher } from './locale-switcher';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import AdvanceDayPanel from './advance-day-panel';
 import { usePlayerWallet } from '@/stores/usePlayerWallet';
+import { formatCurrency } from '@/lib/format';
 
 interface PlayerNavbarProps {
   user?: {
@@ -31,6 +34,8 @@ export default function PlayerNavbar({ user: propUser, initialUnreadCount = 0 }:
   const [clockPanelOpen, setClockPanelOpen] = useState(false);
 
   const { setWallet, balanceUsd, balanceXp, balanceDiamond } = usePlayerWallet();
+  const t = useTranslations('nav');
+  const locale = useLocale();
 
   useEffect(() => {
     setMounted(true);
@@ -65,11 +70,6 @@ export default function PlayerNavbar({ user: propUser, initialUnreadCount = 0 }:
     }
   }, [propUser, setWallet]);
 
-  const formatBalance = (value: number | undefined, decimals: number = 0): string => {
-    if (value === undefined) return '0';
-    return value.toLocaleString('tr-TR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-  };
-
   if (!mounted) return null;
 
   return (
@@ -84,7 +84,7 @@ export default function PlayerNavbar({ user: propUser, initialUnreadCount = 0 }:
               size="icon"
               onClick={() => setSidebarOpen(true)}
               className="md:hidden h-9 w-9"
-              aria-label="Menüyü aç"
+              aria-label={t('openMenu')}
             >
               <Menu className="h-5 w-5" />
             </Button>
@@ -109,10 +109,10 @@ export default function PlayerNavbar({ user: propUser, initialUnreadCount = 0 }:
               variant="default"
               size="lg"
               onClick={() => setClockPanelOpen(true)}
-              aria-label="Game Clock"
+              aria-label={t('gameClock')}
             >
               <Clock className="h-5 w-5"/>
-              Sim
+              {t('sim')}
             </Button>
 
             {/* Bakiye Bilgileri - Mobilde gizli, tablet+ görünür (from store) */}
@@ -121,8 +121,8 @@ export default function PlayerNavbar({ user: propUser, initialUnreadCount = 0 }:
               <div className="flex items-center gap-2">
                 <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
                 <div className="flex flex-col">
-                  <span className="text-xs text-muted-foreground">USD</span>
-                  <span className="font-semibold text-xs sm:text-sm">{formatBalance(balanceUsd, 2)}</span>
+                  <span className="text-xs text-muted-foreground">{t('usd')}</span>
+                  <span className="font-semibold text-xs sm:text-sm">{formatCurrency(balanceUsd ?? 0, locale)}</span>
                 </div>
               </div>
 
@@ -132,8 +132,8 @@ export default function PlayerNavbar({ user: propUser, initialUnreadCount = 0 }:
               <div className="flex items-center gap-2">
                 <Coins className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-500" />
                 <div className="flex flex-col">
-                  <span className="text-xs text-muted-foreground">XP</span>
-                  <span className="font-semibold text-xs sm:text-sm">{formatBalance(balanceXp)}</span>
+                  <span className="text-xs text-muted-foreground">{t('xp')}</span>
+                  <span className="font-semibold text-xs sm:text-sm">{(balanceXp ?? 0).toLocaleString(locale)}</span>
                 </div>
               </div>
 
@@ -143,11 +143,14 @@ export default function PlayerNavbar({ user: propUser, initialUnreadCount = 0 }:
               <div className="flex items-center gap-2">
                 <Gem className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
                 <div className="flex flex-col">
-                  <span className="text-xs text-muted-foreground">Elmas</span>
-                  <span className="font-semibold text-xs sm:text-sm">{formatBalance(balanceDiamond)}</span>
+                  <span className="text-xs text-muted-foreground">{t('diamond')}</span>
+                  <span className="font-semibold text-xs sm:text-sm">{(balanceDiamond ?? 0).toLocaleString(locale)}</span>
                 </div>
               </div>
             </div>
+
+            {/* Locale Switcher */}
+            <LocaleSwitcher />
 
             {/* Settings Button */}
             <Button
@@ -155,7 +158,7 @@ export default function PlayerNavbar({ user: propUser, initialUnreadCount = 0 }:
               size="icon"
               onClick={() => setSettingsOpen(true)}
               className="h-9 w-9 sm:h-10 sm:w-10"
-              aria-label="Settings"
+              aria-label={t('settings')}
             >
               <Settings className="h-5 w-5" />
             </Button>
@@ -183,7 +186,7 @@ export default function PlayerNavbar({ user: propUser, initialUnreadCount = 0 }:
           <SheetHeader className="mb-4">
             <SheetTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-amber-600" />
-              Game Simulation
+              {t('gameClock')}
             </SheetTitle>
           </SheetHeader>
           <AdvanceDayPanel open={clockPanelOpen} />

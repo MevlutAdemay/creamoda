@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale, getMessages } from 'next-intl/server';
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import { ColorThemeProvider } from "@/components/shared/color-theme-provider";
 import { ToastProvider } from '@/components/ui/ToastCenter';
@@ -20,13 +22,16 @@ export const metadata: Metadata = {
   description: "Moda Endüstrisi Simülasyon Oyunu",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <html lang="tr" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <body
         suppressHydrationWarning
         className={`${inter.variable} antialiased`}
@@ -34,24 +39,26 @@ export default function RootLayout({
         {/* Global Art Background */}
         <ArtCard />
 
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <ColorThemeProvider>
-            <ToastProvider>
-              <HubProvider>
-                {/* Hub navigation components */}
-                <HubButton />
-                <HubOverlay />
-                
-                {children}
-              </HubProvider>
-            </ToastProvider>
-          </ColorThemeProvider>
-        </ThemeProvider>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <ColorThemeProvider>
+              <ToastProvider>
+                <HubProvider>
+                  {/* Hub navigation components */}
+                  <HubButton />
+                  <HubOverlay />
+                  
+                  {children}
+                </HubProvider>
+              </ToastProvider>
+            </ColorThemeProvider>
+          </ThemeProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

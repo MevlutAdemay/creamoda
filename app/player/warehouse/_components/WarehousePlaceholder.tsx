@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
@@ -16,20 +19,22 @@ export function WarehousePlaceholder({
   backHref,
   noWarehouse = false,
 }: WarehousePlaceholderProps) {
+  const t = useTranslations('warehouse');
+
   if (noWarehouse) {
     return (
       <Card className="border bg-card shadow-sm">
         <CardHeader>
-          <CardTitle className="text-base">No warehouse selected</CardTitle>
+          <CardTitle className="text-base">{t('noWarehouseSelected')}</CardTitle>
           <CardDescription>
-            Select a warehouse from the overview to view this section.
+            {t('selectWarehouseFromOverview')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Button variant="outline" size="sm" asChild>
             <Link href={backHref}>
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Warehouse Overview
+              {t('backToOverview')}
             </Link>
           </Button>
         </CardContent>
@@ -40,9 +45,9 @@ export function WarehousePlaceholder({
   return (
     <Card className="border border-muted bg-muted/20 shadow-sm">
       <CardHeader>
-        <CardTitle className="text-base">This section will be implemented next.</CardTitle>
+        <CardTitle className="text-base">{t('sectionComingSoon')}</CardTitle>
         <CardDescription>
-          The following will be available here:
+          {t('sectionComingSoonDesc')}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -54,7 +59,7 @@ export function WarehousePlaceholder({
         <Button asChild>
           <Link href={backHref}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Warehouse Overview
+            {t('backToOverview')}
           </Link>
         </Button>
       </CardContent>

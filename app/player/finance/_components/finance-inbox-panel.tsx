@@ -2,10 +2,12 @@
 'use client';
 
 import Link from 'next/link';
+import { useTranslations, useLocale } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Inbox } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatDateTime } from '@/lib/format';
 
 type InboxItem = {
   id: string;
@@ -17,36 +19,31 @@ type InboxItem = {
 
 type Props = { items: InboxItem[] };
 
-function fmtDate(s: string) {
-  try {
-    return new Date(s).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-  } catch {
-    return s;
-  }
-}
-
 export function FinanceInboxPanel({ items }: Props) {
+  const t = useTranslations('finance.inbox');
+  const locale = useLocale();
+
   return (
     <Card className="border bg-card shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="flex items-center gap-2 text-sm">
           <Inbox className="h-4 w-4 text-muted-foreground" />
-          Finance Inbox
+          {t('title')}
         </CardTitle>
         <Button variant="ghost" size="sm" asChild>
-          <Link href="/player/messages">View all</Link>
+          <Link href="/player/messages">{t('viewAll')}</Link>
         </Button>
       </CardHeader>
 
       <CardContent className="pt-2">
         {items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No finance messages yet.</p>
+          <p className="text-sm text-muted-foreground">{t('empty')}</p>
         ) : (
           <div className="rounded-lg border border-border/60 overflow-hidden">
             {/* header */}
             <div className="grid grid-cols-[120px_1fr] gap-3 bg-muted/30 px-3 py-2 text-[11px] font-medium text-muted-foreground select-none">
-              <div>Time</div>
-              <div>Message</div>
+              <div>{t('colTime')}</div>
+              <div>{t('colMessage')}</div>
             </div>
 
             {/* rows */}
@@ -60,7 +57,7 @@ export function FinanceInboxPanel({ items }: Props) {
                   )}
                 >
                   <div className="text-[11px] text-muted-foreground tabular-nums leading-snug">
-                    {fmtDate(m.createdAt)}
+                    {formatDateTime(m.createdAt, locale)}
                   </div>
 
                   <div className="min-w-0">
