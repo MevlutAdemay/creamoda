@@ -145,7 +145,7 @@ export default async function DesignOfficesPage({ searchParams }: PageProps) {
   });
 
   return (
-    <div className="relative min-h-screen bg-transparent w-full">
+    <div className="relative min-h-[80vh] bg-transparent w-full">
       <div className="container mx-auto p-4 min-w-full">
         {/* Header */}
         <div className="mb-8">

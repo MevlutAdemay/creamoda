@@ -1,3 +1,6 @@
+//app/player/finance/page.tsx
+
+
 /**
  * Finance Operations (CFO) page V1 – Server Component.
  * Data from CompanyLedgerEntry; filters via URL params.
@@ -7,7 +10,6 @@ import { redirect } from 'next/navigation';
 import { getServerSession } from '@/lib/auth/get-session';
 import prisma from '@/lib/prisma';
 import { BuildingRole, FinanceCategory, FinanceDirection, FinanceScopeType } from '@prisma/client';
-import { DepartmentCode } from '@prisma/client';
 import { getCompanyGameDayKey } from '@/lib/game/game-clock';
 import { formatDayKeyString } from '@/lib/game/game-clock';
 import { getDateRangeForRangeKey, type RangeKey } from './_lib/date-range';
@@ -18,28 +20,14 @@ import { CashflowLineChart } from './_components/cashflow-line-chart';
 import { ExpenseBreakdownChart } from './_components/expense-breakdown-chart';
 import { LedgerTable } from './_components/ledger-table';
 import { BuildingSummaryTable } from './_components/building-summary-table';
-import { FinanceInboxPanel } from './_components/finance-inbox-panel';
+import { MonthlyFixExpensesTable } from './_components/monthly-fix-expenses-table';
 import { getTranslations } from 'next-intl/server';
-import { DollarSign } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { FileText } from 'lucide-react';
 
 const RANGE_OPTIONS: RangeKey[] = ['all', '14d', '30d', 'thisMonth', 'prevMonth'];
-const CATEGORIES = [
-  'all',
-  'PAYROLL',
-  'RENT',
-  'OVERHEAD',
-  'PROCUREMENT',
-  'WHOLESALE',
-  'MARKETING',
-  'LOGISTICS',
-  'PART_TIME',
-  'CAPEX',
-  'OTHER',
-] as const;
 
 function buildingLabel(role: BuildingRole, name: string | null, marketZone: string | null): string {
   const suffix = name?.trim() || (role === BuildingRole.HQ ? 'Management' : marketZone || '—');
@@ -61,7 +49,7 @@ const LEDGER_PAGE_SIZE = 200;
 const AGGREGATION_CAP = 10000;
 
 type PageProps = {
-  searchParams: Promise<{ range?: string; scope?: string; scopeId?: string; category?: string; cursor?: string }> | { range?: string; scope?: string; scopeId?: string; category?: string; cursor?: string };
+  searchParams: Promise<{ range?: string; scope?: string; scopeId?: string; cursor?: string }> | { range?: string; scope?: string; scopeId?: string; cursor?: string };
 };
 
 export default async function FinancePage({ searchParams }: PageProps) {
@@ -75,35 +63,41 @@ export default async function FinancePage({ searchParams }: PageProps) {
   if (!company) redirect('/wizard');
 
   const params = searchParams instanceof Promise ? await searchParams : searchParams;
-  const hasKnownParams = params.range !== undefined || params.scope !== undefined || params.scopeId !== undefined || params.category !== undefined || params.cursor !== undefined;
+  const hasKnownParams = params.range !== undefined || params.scope !== undefined || params.scopeId !== undefined || params.cursor !== undefined;
   if (!hasKnownParams) {
-    redirect('/player/finance?range=all&scope=company&category=all');
+    redirect('/player/finance?range=all&scope=company');
   }
   const rangeParam = (params.range?.trim() || 'all') as RangeKey;
   const range = RANGE_OPTIONS.includes(rangeParam) ? rangeParam : 'all';
   const scope = (params.scope?.trim() || 'company') as string;
   const scopeId = params.scopeId?.trim() || null;
-  const categoryParam = params.category?.trim() || 'all';
-  const category = CATEGORIES.includes(categoryParam as (typeof CATEGORIES)[number]) ? categoryParam : 'all';
   const cursor = params.cursor?.trim() || null;
 
-  const [buildings, currentDayKey, inboxMessages] = await Promise.all([
+  const [buildings, currentDayKey] = await Promise.all([
     prisma.companyBuilding.findMany({
       where: { companyId: company.id },
       select: { id: true, role: true, name: true, marketZone: true },
       orderBy: [{ role: 'asc' }, { id: 'asc' }],
     }),
     getCompanyGameDayKey(company.id),
-    prisma.playerMessage.findMany({
-      where: {
-        playerId: session.user.id,
-        department: DepartmentCode.FINANCE,
-      },
-      select: { id: true, createdAt: true, title: true, body: true, category: true },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-    }),
   ]);
+
+  const buildingIds = buildings.map((b) => b.id);
+  const [salaryAgg, buildingMetrics] = await Promise.all([
+    prisma.companyStaff.aggregate({
+      where: { companyId: company.id },
+      _sum: { monthlySalaryFinal: true },
+    }),
+    buildingIds.length > 0
+      ? prisma.buildingMetricState.findMany({
+          where: { buildingId: { in: buildingIds } },
+          select: { rentPerMonthly: true, overheadMonthly: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  const salaryTotal = Number(salaryAgg._sum.monthlySalaryFinal ?? 0);
+  const rentTotal = buildingMetrics.reduce((s, r) => s + Number(r.rentPerMonthly ?? 0), 0);
+  const overheadTotal = buildingMetrics.reduce((s, r) => s + Number(r.overheadMonthly ?? 0), 0);
 
   const dateRange = getDateRangeForRangeKey(range, currentDayKey);
   const ledgerWhere: {
@@ -138,10 +132,6 @@ export default async function FinancePage({ searchParams }: PageProps) {
       }
     }
   }
-  if (category !== 'all') {
-    ledgerWhere.category = category as FinanceCategory;
-  }
-
   const [aggregationEntries, ledgerPage] = await Promise.all([
     prisma.companyLedgerEntry.findMany({
       where: ledgerWhere,
@@ -182,7 +172,6 @@ export default async function FinancePage({ searchParams }: PageProps) {
   const ledgerEntriesForTable = hasMoreLedger ? ledgerPage.slice(0, LEDGER_PAGE_SIZE) : ledgerPage;
   const ledgerNextCursor = hasMoreLedger ? ledgerPage[LEDGER_PAGE_SIZE - 1]?.id ?? null : null;
   const scopeIdForTable = scopeId ?? null;
-  const categoryForTable = category === 'all' ? null : category;
   const ledgerEntries = aggregationEntries;
 
   const buildingMap = new Map(
@@ -299,7 +288,6 @@ export default async function FinancePage({ searchParams }: PageProps) {
     range,
     scope,
     scopeId: scopeId || null,
-    category: category === 'all' ? null : category,
     kpis: {
       net,
       totalIn,
@@ -312,13 +300,6 @@ export default async function FinancePage({ searchParams }: PageProps) {
     tableRows,
     ledgerHasMore: hasMoreLedger,
     ledgerNextCursor: ledgerNextCursor ?? null,
-    inbox: inboxMessages.map((m) => ({
-      id: m.id,
-      createdAt: m.createdAt.toISOString(),
-      title: m.title,
-      body: m.body,
-      category: m.category ?? undefined,
-    })),
   };
 
   const warehouseBuildings = buildings.filter((b) => b.role === BuildingRole.WAREHOUSE);
@@ -351,7 +332,6 @@ export default async function FinancePage({ searchParams }: PageProps) {
               range={range}
               scope={scope}
               scopeId={scopeId}
-              category={category === 'all' ? null : category}
               scopeOptions={scopeOptions}
             />
              <Button variant="outline" size="sm" asChild>
@@ -391,17 +371,22 @@ export default async function FinancePage({ searchParams }: PageProps) {
                 rows={data.tableRows}
                 hasMore={data.ledgerHasMore ?? false}
                 nextCursor={data.ledgerNextCursor ?? null}
-                currentParams={{ range, scope, scopeId: scopeIdForTable, category: categoryForTable }}
+                currentParams={{ range, scope, scopeId: scopeIdForTable }}
               />
             </div>
             <div className="shrink-0 lg:w-[30%] lg:min-w-[280px]">
               <h2 className="text-lg font-semibold mb-2">{t('buildingSummary')}</h2>
               <BuildingSummaryTable rows={data.buildingSummary} />
+              <h2 className="text-lg font-semibold mb-2 mt-6">{t('monthlyFixExpenses')}</h2>
+              <MonthlyFixExpensesTable
+                rows={[
+                  { label: t('expenseSalary'), amount: salaryTotal },
+                  { label: t('expenseRent'), amount: rentTotal },
+                  { label: t('expenseOverhead'), amount: overheadTotal },
+                ]}
+              />
             </div>
           </div>
-
-          
-          <FinanceInboxPanel items={data.inbox ?? []} />
         </div>
       </div>
     </div>

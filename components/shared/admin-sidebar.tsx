@@ -4,7 +4,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { X, Shield, Package, ShoppingCart, BarChart3, Palette } from 'lucide-react';
+import { X, Shield, Package, ShoppingCart, BarChart3, Palette, Factory } from 'lucide-react';
 
 export type AdminSidebarItem = {
   key: string;
@@ -32,6 +32,12 @@ const DEFAULT_ITEMS: AdminSidebarItem[] = [
     title: 'Wholesale Suppliers', 
     href: '/admin/wholesales', 
     icon: ShoppingCart 
+  },
+  { 
+    key: 'factories', 
+    title: 'Factories', 
+    href: '/admin/factories', 
+    icon: Factory 
   },
   { 
     key: 'metrics', 

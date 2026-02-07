@@ -38,7 +38,7 @@ export default async function PerformanceDetailPage({
   const backHref = `/player/performance${data.warehouseId ? `?warehouseId=${encodeURIComponent(data.warehouseId)}` : ''}`;
 
   return (
-    <div className="relative min-h-screen bg-transparent">
+    <div className="relative min-h-[80vh] bg-transparent">
       <div className="container mx-auto p-4 md:p-8">
         <div className="mx-auto max-w-4xl space-y-6 min-w-full">
           <PerformanceDetailClient data={data} backHref={backHref} />

@@ -40,6 +40,11 @@
     "expenseDesc": "Kategoriye göre ÇIKIŞ toplamları",
     "ledger": "Defter",
     "buildingSummary": "Bina Özeti",
+    "monthlyFixExpenses": "Aylık Sabit Giderler",
+    "expenseSalary": "Maaş gideri",
+    "expenseRent": "Kira gideri",
+    "expenseOverhead": "Genel Gider",
+    "expenseTotal": "Genel Toplam",
     "kpi": {
       "walletUsd": "Cüzdan USD",
       "walletXp": "Cüzdan XP",

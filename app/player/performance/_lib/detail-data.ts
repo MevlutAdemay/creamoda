@@ -52,7 +52,7 @@ export function getPriceEvaluation(
     tone: 'warning',
   };
 }
-import { getCompanyGameDayKey } from '@/lib/game/game-clock';
+import { getCompanyGameDayKey, formatDayKeyString } from '@/lib/game/game-clock';
 import { getWeekIndex0FromDayKey } from '@/lib/game/season-score';
 import { addMonthsUtc, getUtcDayOfYear } from '@/lib/game/date-utils';
 import { BuildingRole, ListingStatus } from '@prisma/client';
@@ -212,6 +212,8 @@ export type PerformanceDetailData = {
   warehouseLabel: string;
   marketZone: string;
   listingId: string;
+  /** BuildingInventoryItem.id for this warehouse+playerProduct; required for price update API */
+  inventoryItemId: string | null;
   salePrice: number;
   /** Overview card: only these 4 (+ price evaluation under sale price) */
   stockCount: number;
@@ -281,6 +283,8 @@ export type PerformanceDetailData = {
   };
   /** For warehouse selector */
   warehouses: Array<{ id: string; label: string }>;
+  /** Current game day (YYYY-MM-DD) for campaign modal */
+  currentDayKey: string;
   /** Dev only: band lookup debug */
   _debug?: {
     templateCategoryId: string;
@@ -386,7 +390,7 @@ export async function getPerformanceDetailData(
         playerProductId,
         isArchived: false,
       },
-      select: { qtyOnHand: true },
+      select: { id: true, qtyOnHand: true },
     }),
     prisma.productMarketingCampaign.findMany({
       where: { listingId: listing.id },
@@ -636,6 +640,7 @@ export async function getPerformanceDetailData(
     warehouseLabel,
     marketZone: listing.marketZone,
     listingId: listing.id,
+    inventoryItemId: inventory?.id ?? null,
     salePrice,
     stockCount: stockOnHand,
     salePriceDisplay: salePrice,
@@ -664,6 +669,7 @@ export async function getPerformanceDetailData(
     willStockEndBeforePeakNote,
     ...(seasonRemaining !== undefined && { seasonRemaining }),
     warehouses: warehouseList,
+    currentDayKey: formatDayKeyString(currentDayKey),
     ...(process.env.NODE_ENV === 'development' && {
       _debug: {
         templateCategoryId,

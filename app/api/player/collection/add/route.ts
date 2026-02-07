@@ -16,6 +16,7 @@ import {
   WalletTxnCategory,
   ProductImageUnlockType,
   Prisma,
+  MetricType,
 } from '@prisma/client';
 import { getCompanyGameDayKey } from '@/lib/game/game-clock';
 import { postWalletTransactionAndUpdateBalance } from '@/lib/finance/helpers';
@@ -118,11 +119,12 @@ export async function POST(request: NextRequest) {
           };
         }
 
-        // Load template: economy fields (for overrides at creation time), unlock costs, and image templates with unlockType.
+        // Load template: economy fields (for overrides at creation time), code for internalSkuCode, unlock costs, and image templates with unlockType.
         const template = await tx.productTemplate.findUnique({
           where: { id: productTemplateId },
           select: {
             id: true,
+            code: true,
             name: true,
             baseCost: true,
             suggestedSalePrice: true,
@@ -161,7 +163,7 @@ export async function POST(request: NextRequest) {
           unlockCostXp > 0 ? UnlockMethod.XP : unlockCostDiamond > 0 ? UnlockMethod.DIAMOND : UnlockMethod.FREE;
 
         // Upsert PlayerProduct (idempotent on unique [companyId, productTemplateId]).
-        // Copy economy and lifecycle from template/clock so critical fields are never null for new rows.
+        // Copy economy, code (internalSkuCode), and lifecycle from template/clock so critical fields are never null for new rows.
         const playerProduct = await tx.playerProduct.upsert({
           where: {
             companyId_productTemplateId: { companyId, productTemplateId },
@@ -169,6 +171,7 @@ export async function POST(request: NextRequest) {
           create: {
             companyId,
             productTemplateId,
+            internalSkuCode: template.code,
             displayName: template.name,
             baseCostOverride: template.baseCost,
             suggestedPriceOverride: template.suggestedSalePrice,
@@ -188,6 +191,27 @@ export async function POST(request: NextRequest) {
           },
           select: { id: true },
         });
+
+        // Increment SKU_COUNT for company buildings: each new product adds 1 to currentCount in BuildingMetricState (metricType SKU_COUNT).
+        const companyBuildingIds = await tx.companyBuilding.findMany({
+          where: { companyId },
+          select: { id: true },
+        }).then((rows) => rows.map((r) => r.id));
+        if (companyBuildingIds.length > 0) {
+          const skuStates = await tx.buildingMetricState.findMany({
+            where: {
+              buildingId: { in: companyBuildingIds },
+              metricType: MetricType.SKU_COUNT,
+            },
+            select: { id: true, currentCount: true },
+          });
+          for (const state of skuStates) {
+            await tx.buildingMetricState.update({
+              where: { id: state.id },
+              data: { currentCount: state.currentCount + 1 },
+            });
+          }
+        }
 
         // Create PlayerProductImage for each ProductImageTemplate (idempotent via unique [playerProductId, productImageTemplateId]).
         // Copy unlockType and costs from template; only unlockType === ALWAYS is unlocked at add; PURCHASE_* require separate unlock flow.

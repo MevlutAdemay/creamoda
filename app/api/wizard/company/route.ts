@@ -1,16 +1,20 @@
 // app/api/wizard/company/route.ts
 /**
  * Wizard Step 1: Create Company
- * 
- * Creates:
+ *
+ * When a new company is created (same transaction):
  * - Company record
  * - PlayerWallet (if not exists)
  * - Company buildings (HQ + WAREHOUSE) - idempotent
- * 
+ * - CompanyGroupProcurementState: 8 rows (one per manufacturing group)
+ *   - companyId + manufacturingGroup (JERSEY, WOVEN, DENIM, KNITWEAR, OUTERWEAR, LEATHER, FOOTWEAR, ACCESSORY)
+ *   - totalOrderedQty = 0, currentLevel = 1
+ *   - Enables procurement screen, quote filters (maxFactoriesPerRfq, maxFactoryTierAllowed), level-up logic
+ *
  * Sets:
  * - onboardingStatus = WIZARD
  * - onboardingStep = REVIEW
- * 
+ *
  * Does NOT create:
  * - Staff
  * - Equipment
@@ -174,6 +178,22 @@ export async function POST(request: NextRequest) {
       const buildings = await ensureCompanyBuildings(tx, {
         companyId: company.id,
         countryId: body.countryId,
+      });
+
+      // Open 8 procurement state rows (one per group) so procurement/quote/level-up logic works from day one
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tx has companyGroupProcurementState at runtime (Prisma client types may lag)
+      await (tx as any).companyGroupProcurementState.createMany({
+        data: [
+          { companyId: company.id, manufacturingGroup: 'JERSEY', currentLevel: 1, totalOrderedQty: 0 },
+          { companyId: company.id, manufacturingGroup: 'WOVEN', currentLevel: 1, totalOrderedQty: 0 },
+          { companyId: company.id, manufacturingGroup: 'DENIM', currentLevel: 1, totalOrderedQty: 0 },
+          { companyId: company.id, manufacturingGroup: 'KNITWEAR', currentLevel: 1, totalOrderedQty: 0 },
+          { companyId: company.id, manufacturingGroup: 'OUTERWEAR', currentLevel: 1, totalOrderedQty: 0 },
+          { companyId: company.id, manufacturingGroup: 'LEATHER', currentLevel: 1, totalOrderedQty: 0 },
+          { companyId: company.id, manufacturingGroup: 'FOOTWEAR', currentLevel: 1, totalOrderedQty: 0 },
+          { companyId: company.id, manufacturingGroup: 'ACCESSORY', currentLevel: 1, totalOrderedQty: 0 },
+        ],
+        skipDuplicates: true,
       });
 
       // Update user status

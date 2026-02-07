@@ -65,7 +65,7 @@ export default async function PlayerLayout({
         <PlayerSidebar initialUnreadCount={unreadCount} />
 
         {/* Main Content Area - ml matches sidebar width when visible (w-20 lg:w-64) */}
-        <main className="flex-1 overflow-y-auto bg-transparent relative isolate md:ml-20 lg:ml-60 min-w-0">
+        <main className="flex-1 overflow-y-auto bg-transparent relative isolate md:ml-20 lg:ml-60 min-w-0 max-h-full">
           <PlayerTransitionProviders>{children}</PlayerTransitionProviders>
         </main>
       </div>

@@ -6,7 +6,6 @@ export type FinancePageData = {
   range: string;
   scope: string;
   scopeId?: string | null;
-  category?: string | null;
   kpis: {
     net: number;
     totalIn: number;
@@ -39,11 +38,4 @@ export type FinancePageData = {
   }[];
   ledgerHasMore?: boolean;
   ledgerNextCursor?: string | null;
-  inbox?: {
-    id: string;
-    createdAt: string;
-    title: string;
-    body: string;
-    category?: string;
-  }[];
 };

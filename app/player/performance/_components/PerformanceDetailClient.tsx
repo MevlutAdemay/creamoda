@@ -23,6 +23,9 @@ import {
   ChevronLeft,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PriceDialog } from '@/app/player/sales/_components/PriceDialog';
+import { useToast } from '@/components/ui/ToastCenter';
+import { StartProductCampaignModal } from './StartProductCampaignModal';
 
 const LABEL_VARIANTS: Record<string, 'destructive' | 'secondary' | 'default' | 'outline'> = {
   Poor: 'destructive',
@@ -68,7 +71,11 @@ export function PerformanceDetailClient({
   backHref,
 }: PerformanceDetailClientProps) {
   const router = useRouter();
+  const toast = useToast();
   const [warehouseId, setWarehouseId] = useState(data.warehouseId);
+  const [campaignModalOpen, setCampaignModalOpen] = useState(false);
+  const [priceDialogOpen, setPriceDialogOpen] = useState(false);
+  const [updatePriceSaving, setUpdatePriceSaving] = useState(false);
 
   const handleWarehouseChange = (id: string) => {
     setWarehouseId(id);
@@ -78,14 +85,43 @@ export function PerformanceDetailClient({
   };
 
   const handleStartCampaign = () => {
-    router.push(
-      `/player/marketing?warehouseId=${encodeURIComponent(data.warehouseId)}&listingId=${encodeURIComponent(data.listingId)}`
-    );
+    setCampaignModalOpen(true);
   };
+
   const handleAdjustPrice = () => {
-    router.push(
-      `/player/warehouse?buildingId=${encodeURIComponent(data.warehouseId)}`
-    );
+    if (!data.inventoryItemId) {
+      toast({ kind: 'error', message: 'Cannot update price: inventory item not found for this warehouse.' });
+      return;
+    }
+    setPriceDialogOpen(true);
+  };
+
+  const handlePriceDialogConfirm = async (salePrice: number) => {
+    if (!data.inventoryItemId) return;
+    setUpdatePriceSaving(true);
+    try {
+      const res = await fetch('/api/player/showcase-listings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          warehouseBuildingId: data.warehouseId,
+          inventoryItemId: data.inventoryItemId,
+          salePrice,
+        }),
+      });
+      const resData = await res.json();
+      if (!res.ok) {
+        toast({ kind: 'error', message: resData.error ?? 'Failed to update price' });
+        return;
+      }
+      toast({ kind: 'success', message: 'Price updated' });
+      setPriceDialogOpen(false);
+      router.refresh();
+    } catch (e) {
+      toast({ kind: 'error', message: e instanceof Error ? e.message : 'Failed to update price' });
+    } finally {
+      setUpdatePriceSaving(false);
+    }
   };
 
   return (
@@ -147,6 +183,7 @@ export function PerformanceDetailClient({
             variant="default"
             size="default"
             onClick={handleAdjustPrice}
+            disabled={!data.inventoryItemId}
             className="rounded-md"
           >
             <DollarSign className="h-4 w-4" />
@@ -356,6 +393,27 @@ export function PerformanceDetailClient({
           </CardContent>
         </Card>
       </div>
+
+      <StartProductCampaignModal
+        open={campaignModalOpen}
+        onOpenChange={setCampaignModalOpen}
+        warehouseId={data.warehouseId}
+        listingId={data.listingId}
+        productName={data.productName}
+        warehouseLabel={data.warehouseLabel}
+        currentDayKey={data.currentDayKey}
+        onSuccess={() => router.refresh()}
+      />
+
+      <PriceDialog
+        open={priceDialogOpen}
+        onOpenChange={setPriceDialogOpen}
+        mode="update"
+        productName={data.productName}
+        initialSalePrice={String(data.salePriceDisplay)}
+        saving={updatePriceSaving}
+        onConfirm={handlePriceDialogConfirm}
+      />
     </div>
   );
 }

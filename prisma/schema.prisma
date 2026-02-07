@@ -681,6 +681,7 @@ model Company {
   categoryMarketingCampaigns  CategoryMarketingCampaign[]
   productMarketingCampaigns  ProductMarketingCampaign[]
   warehouseAwarenessStates   WarehouseAwarenessState[]
+  companyGroupProcurementStates CompanyGroupProcurementState[]
 
   // Game clock (1-1)
   gameClock CompanyGameClock?
@@ -763,6 +764,7 @@ model Country {
   companies Company[]
   companyBuildings CompanyBuilding[]
   wholesaleSuppliers WholesaleSupplier[]
+  factories Factory[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -805,6 +807,7 @@ model City {
 
   companies Company[]
   wholesaleSuppliers WholesaleSupplier[]
+  factories Factory[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2541,4 +2544,121 @@ model WarehouseAwarenessState {
   @@unique([warehouseBuildingId])
   @@index([companyId])
   @@index([companyId, warehouseBuildingId])
+}
+model Factory {
+  id String @id @default(cuid())
+
+  // UI / Admin
+  code String @unique
+  name String
+
+  // Location
+  countryId String
+  cityId    String? // MVP: optional
+
+  // What this factory can produce (single primary group for MVP)
+  manufacturingGroup ManufacturingGroup
+
+  // Quality positioning
+  productQuality ProductQuality
+
+  /**
+   * Progression gating (bigger factories unlock later)
+   * 1 = small workshop, 5 = large industrial partner
+   */
+  factoryTier Int @default(1)
+
+  // Production character
+  baseLeadTimeDays  Int // ex-factory production baseline (e.g. 28..49)
+  baseDailyCapacity Int // max units per day
+  defaultMoq        Int // minimum order qty
+
+  // Small random differences between factories in same segment (%2–8)
+  priceNoiseMinPct Float @default(0.02)
+  priceNoiseMaxPct Float @default(0.08)
+
+  // Operational flags
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations (adapt model names if yours differ)
+  country Country @relation(fields: [countryId], references: [id], onDelete: Restrict)
+  city    City?  @relation(fields: [cityId], references: [id], onDelete: SetNull)
+
+  @@index([countryId])
+  @@index([cityId])
+  @@index([manufacturingGroup])
+  @@index([productQuality])
+  @@index([factoryTier])
+  @@index([isActive])
+  @@map("factories")
+}
+
+// =========================
+// PROCUREMENT PROGRESSION (GROUP-BASED)
+// =========================
+
+model GroupProcurementLevelMetric {
+  id String @id @default(cuid())
+
+  manufacturingGroup ManufacturingGroup
+  level              Int
+
+  /**
+   * Level-up threshold:
+   * CompanyGroupProcurementState.totalOrderedQty >= minTotalOrderedQty
+   */
+  minTotalOrderedQty Int
+
+  /**
+   * Quote modifiers (multipliers)
+   * priceMultiplier: 1.00 normal, 0.92 better (cheaper)
+   * leadTimeMultiplier: 1.00 normal, 0.88 better (faster)
+   */
+  priceMultiplier    Float @default(1.0)
+  leadTimeMultiplier Float @default(1.0)
+
+  /**
+   * Gameplay caps / unlocks
+   */
+  maxFactoriesPerRfq     Int @default(2)  // how many factories can be selected per RFQ
+  maxOpenQty             Int @default(0)  // total "in production" qty cap for this group (0=unlimited if you want)
+  maxFactoryTierAllowed  Int @default(1)  // unlock bigger factories (1..5)
+
+  /**
+   * Rewards
+   */
+  xpAwardOnLevelUp Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([manufacturingGroup, level])
+  @@index([manufacturingGroup])
+  @@index([manufacturingGroup, level])
+  @@map("group_procurement_level_metrics")
+}
+
+model CompanyGroupProcurementState {
+  id String @id @default(cuid())
+
+  companyId          String
+  manufacturingGroup ManufacturingGroup
+
+  /**
+   * Progress tracking
+   */
+  totalOrderedQty Int @default(0) // lifetime total ordered qty for this group
+  currentLevel    Int @default(1)
+  
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, manufacturingGroup])
+  @@index([companyId])
+  @@index([manufacturingGroup])
+  @@map("company_group_procurement_states")
 }

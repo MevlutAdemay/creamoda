@@ -40,6 +40,11 @@
     "expenseDesc": "OUT totals by category",
     "ledger": "Ledger",
     "buildingSummary": "Building Summary",
+    "monthlyFixExpenses": "Monthly Fix Expenses",
+    "expenseSalary": "Salary expense",
+    "expenseRent": "Rent expense",
+    "expenseOverhead": "Overhead expense",
+    "expenseTotal": "Total expense",
     "kpi": {
       "walletUsd": "Wallet USD",
       "walletXp": "Wallet XP",

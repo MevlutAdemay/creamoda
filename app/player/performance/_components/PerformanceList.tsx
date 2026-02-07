@@ -110,7 +110,7 @@ export function PerformanceList({ rows, warehouseId }: PerformanceListProps) {
       </div>
 
       <div className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2 max-w-4xl">
+        <div className="flex flex-wrap items-center justify-between gap-2 max-w-6xl">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>Show</span>
             <Select
@@ -160,7 +160,7 @@ export function PerformanceList({ rows, warehouseId }: PerformanceListProps) {
           )}
         </div>
 
-        <div className="rounded-md border bg-card/50 max-w-4xl">
+        <div className="rounded-md border bg-card/50 max-w-6xl">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50">

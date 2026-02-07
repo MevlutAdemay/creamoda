@@ -40,7 +40,7 @@ export type LedgerRow = {
   refId?: string | null;
 };
 
-type CurrentParams = { range: string; scope: string; scopeId: string | null; category: string | null };
+type CurrentParams = { range: string; scope: string; scopeId: string | null };
 
 type Props = {
   rows: LedgerRow[];
@@ -120,7 +120,7 @@ export function LedgerTable({ rows, hasMore = false, nextCursor = null, currentP
 
   const loadMoreHref =
     currentParams && nextCursor
-      ? `/player/finance?range=${currentParams.range}&scope=${currentParams.scope}${currentParams.scopeId ? `&scopeId=${currentParams.scopeId}` : ''}${currentParams.category ? `&category=${currentParams.category}` : ''}&cursor=${encodeURIComponent(nextCursor)}`
+      ? `/player/finance?range=${currentParams.range}&scope=${currentParams.scope}${currentParams.scopeId ? `&scopeId=${currentParams.scopeId}` : ''}&cursor=${encodeURIComponent(nextCursor)}`
       : null;
 
   return (
@@ -176,7 +176,7 @@ export function LedgerTable({ rows, hasMore = false, nextCursor = null, currentP
           )}
         </div>
 
-        <div className="rounded-md border bg-card">
+        <div className="rounded-md border bg-card/50">
           <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50 hover:bg-muted/50">

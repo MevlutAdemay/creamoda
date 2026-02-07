@@ -1,4 +1,4 @@
-'use client';
+  'use client';
 
 import {
   Table,
@@ -26,7 +26,7 @@ function formatUsd(n: number): string {
 
 export function BuildingSummaryTable({ rows }: Props) {
   return (
-    <div className="rounded-md border bg-card sm:mt-13">
+    <div className="rounded-md border bg-card/50 sm:mt-13">
       <Table>
         <TableHeader>
           <TableRow>

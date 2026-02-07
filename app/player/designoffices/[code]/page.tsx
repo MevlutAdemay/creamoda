@@ -322,7 +322,7 @@ export default async function DesignStudioDetailPage({ params }: PageProps) {
       warehouses={fastSupplyWarehouses}
       companyId={companyId}
     >
-      <div className="relative min-h-screen bg-transparent">
+      <div className="relative min-h-[80vh] bg-transparent">
         <div className="container mx-auto p-8">
           {/* Studio Header */}
           <div className="mb-8">
