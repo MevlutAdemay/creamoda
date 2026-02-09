@@ -13,6 +13,7 @@ import { postScheduledCompanyCosts } from '@/lib/game/post-scheduled-company-cos
 import { createScheduledCostsFinanceMessageIfNeeded } from '@/lib/game/finance-inbox-messages';
 import { createBacklogWarningMessageIfNeeded } from '@/lib/game/logistics-inbox-messages';
 import { applyCampaignEndAwareness } from '@/lib/game/apply-campaign-end-awareness';
+import { runGuidanceTickForCompany } from '@/lib/game/guidance-tick';
 import { BuildingRole } from '@prisma/client';
 
 export interface AdvanceCompanyDayResult {
@@ -79,6 +80,8 @@ export async function advanceCompanyDay(companyId: string): Promise<AdvanceCompa
   if (anyCostPosted) {
     await createScheduledCostsFinanceMessageIfNeeded(companyId, newDayKey, costResult);
   }
+
+  await runGuidanceTickForCompany(companyId);
 
   return {
     previousDayKey,

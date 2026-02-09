@@ -3,9 +3,11 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
 
 export default function ProcurementPage() {
   const [content, setContent] = useState('');
@@ -20,6 +22,11 @@ export default function ProcurementPage() {
             <p className="text-muted-foreground">
               Satın alma ve merchandising işlemlerinizi buradan yönetebilirsiniz.
             </p>
+            <Link href="/player/procurement/catalog">
+              <Button variant="default" className="mt-4">
+                Procurement Catalog
+              </Button>
+            </Link>
           </div>
 
           {/* Content Editor */}

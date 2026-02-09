@@ -1463,7 +1463,6 @@ model PlayerProduct {
   // (örn. L3 bulunamadı L2'ye düştü gibi durumları anlamaya yarar)
   resolvedBandCategoryId String?
 
-
   // Flags
   isActive Boolean @default(true)
 
@@ -1477,6 +1476,17 @@ model PlayerProduct {
   inventoryMovements InventoryMovement[] @relation("MovementPlayerProduct")
   modaverseOrderItems ModaverseOrderItem[]
 
+    // =========================
+  // Hemisphere collection snapshot (MVP)
+  // =========================
+  northCollectionKey   String?  @db.VarChar(16)  // e.g. FW2526, SS26, SS2627
+  northCollectionLabel String?  @db.VarChar(16)  // e.g. FW-25/26, SS-26/27
+  northIntroducedAtDayKey DateTime?
+
+  southCollectionKey   String?  @db.VarChar(16)
+  southCollectionLabel String?  @db.VarChar(16)
+  southIntroducedAtDayKey DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1486,6 +1496,8 @@ model PlayerProduct {
   @@index([companyId, isUnlocked])
   @@index([launchedAtDayKey])
   @@map("player_products")
+  @@index([companyId, northCollectionKey])
+  @@index([companyId, southCollectionKey])
 }
 
 
