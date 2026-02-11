@@ -1,11 +1,12 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import type { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { createFactorySchema, updateFactorySchema, type CreateFactoryInput, type UpdateFactoryInput, type ListFilters } from './_schemas';
 
 export async function listFactories(filters: ListFilters = {}) {
-  const where: Parameters<typeof prisma.factory.findMany>[0]['where'] = {};
+  const where: Prisma.FactoryWhereInput = {};
 
   if (filters.search?.trim()) {
     const q = filters.search.trim();
