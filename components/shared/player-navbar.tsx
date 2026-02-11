@@ -5,12 +5,10 @@
 import { useState, useEffect } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { Button } from '@/components/ui/button';
-import { Settings, DollarSign, Coins, Gem, Menu, Clock } from 'lucide-react';
+import { Settings, DollarSign, Coins, Gem, Menu } from 'lucide-react';
 import PlayerSettings from './player-settings';
 import PlayerSidebar from './player-sidebar';
 import { LocaleSwitcher } from './locale-switcher';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import AdvanceDayPanel from './advance-day-panel';
 import { usePlayerWallet } from '@/stores/usePlayerWallet';
 import { formatCurrency } from '@/lib/format';
 
@@ -31,7 +29,6 @@ export default function PlayerNavbar({ user: propUser, initialUnreadCount = 0 }:
   const [mounted, setMounted] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [clockPanelOpen, setClockPanelOpen] = useState(false);
 
   const { setWallet, balanceUsd, balanceXp, balanceDiamond } = usePlayerWallet();
   const t = useTranslations('nav');
@@ -104,17 +101,6 @@ export default function PlayerNavbar({ user: propUser, initialUnreadCount = 0 }:
 
           {/* Right Section: Balance & Settings */}
           <div className="flex items-center gap-2 sm:gap-4">
-            {/* Game Clock Button */}
-            <Button
-              variant="default"
-              size="lg"
-              onClick={() => setClockPanelOpen(true)}
-              aria-label={t('gameClock')}
-            >
-              <Clock className="h-5 w-5"/>
-              {t('sim')}
-            </Button>
-
             {/* Bakiye Bilgileri - Mobilde gizli, tablet+ görünür (from store) */}
             <div className="hidden md:flex items-center gap-3 px-3 py-2 bg-background/50 rounded-lg border border-border/50">
               {/* USD Balance */}
@@ -180,18 +166,6 @@ export default function PlayerNavbar({ user: propUser, initialUnreadCount = 0 }:
         user={user}
       />
 
-      {/* Game Clock / Simulation Sidebar */}
-      <Sheet open={clockPanelOpen} onOpenChange={setClockPanelOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
-          <SheetHeader className="mb-4">
-            <SheetTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-amber-600" />
-              {t('gameClock')}
-            </SheetTitle>
-          </SheetHeader>
-          <AdvanceDayPanel open={clockPanelOpen} />
-        </SheetContent>
-      </Sheet>
     </>
   );
 }

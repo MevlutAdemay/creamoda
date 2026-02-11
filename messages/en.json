@@ -133,5 +133,41 @@
       "page": "Page {current} of {total}",
       "noData": "No data."
     }
+  },
+  "simulation": {
+    "nextDay": "Next Day",
+    "runningTitle": "Running simulation…",
+    "steps": {
+      "1": "Booting daily tick",
+      "2": "Syncing game clock",
+      "3": "Evaluating season context",
+      "4": "Reading showcase listings",
+      "5": "Validating price bands",
+      "6": "Checking warehouse stock",
+      "7": "Allocating inventory",
+      "8": "Generating orders",
+      "9": "Confirming shipments",
+      "10": "Running settlements",
+      "11": "Updating wallet & inbox",
+      "12": "Finalizing day snapshot"
+    }
+  },
+  "guidance": {
+    "flow": {
+      "seasonKickoff": {
+        "title": "Season Started",
+        "step1": "The {seasonLabel} sales season has started !!\nFirst, let's build the collection. To do that, we will visit the design studios that will shape this season.",
+        "step2": "When building the collection, we will plan products across three phases:\nEARLY: Products that enter the showcase first\nCORE: The main product group driving mid-season sales\nLATE: Products for season transition and discount period",
+        "step3": "For products entering an active sales season, we will use fast wholesale procurement.\nFactory production typically requires a 5–7 week lead time.\nAfter selecting the collection, we will move on to procurement and production planning.",
+        "cta": "Create Collection"
+      },
+      "departmentDesign": "Design",
+      "departmentBuying": "Buying",
+      "next": "Next"
+    },
+    "collection": {
+      "startToday": "{label} collection opens today. Add your first products.",
+      "reminder7d": "{label} collection has been open for 7 days. Consider adding products."
+    }
   }
 }

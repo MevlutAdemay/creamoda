@@ -1,6 +1,15 @@
+//app/lib/game/guidance-tick.ts
+
 /**
- * Server-side guidance tick: run collection guidance rules and write deduped messages.
- * Call from advance-day (after day advances) or from API /api/player/guidance/tick.
+ * Server-side guidance tick: evaluate collection milestones and persist deduped inbox messages.
+ * Called when game day advances or via API. Uses season-calendar + guidance-rules; no UI logic here.
+ *
+ * Milestones persisted (inbox):
+ * A) Collection starts today (dayKey == window.startDayKey)
+ *
+ * START_IN_5D and REMINDER_7D are now UI-only guidance cards (see guidance-rules.ts).
+ *
+ * dedupeKey: GUIDE:COLLECTION:{TYPE}:{HEMISPHERE}:{CYCLEKEY}
  */
 
 import prisma from '@/lib/prisma';
@@ -12,12 +21,87 @@ import {
   MessageCtaType,
   DepartmentCode,
 } from '@prisma/client';
-import { getCompanyGameDayKey, formatDayKeyString, parseDayKeyString } from '@/lib/game/game-clock';
-import { getCollectionWindow } from '@/lib/game/season-calendar';
-import { buildCollectionGuidance } from '@/lib/game/guidance-rules';
-import type { Hemisphere } from '@/lib/game/season-calendar';
+import { getCompanyGameDayKey } from '@/lib/game/game-clock';
+import {
+  getOpenCollectionWindows,
+  type CollectionWindow,
+  type Hemisphere,
+} from '@/lib/game/season-calendar';
 
-const MS_PER_DAY = 86400000;
+type MilestoneType = 'START_TODAY';
+
+function buildDedupeKey(type: MilestoneType, hemisphere: Hemisphere, cycleKey: string): string {
+  return `GUIDE:COLLECTION:${type}:${hemisphere}:${cycleKey}`;
+}
+
+/**
+ * Build collectionCountsByCycleKey from PlayerProduct snapshot fields only (groupBy).
+ * Uses northCollectionKey / southCollectionKey; no date-window logic.
+ */
+async function getCollectionCountsByCycleKey(
+  companyId: string,
+  hemisphere: Hemisphere
+): Promise<Record<string, number>> {
+  const isNorth = hemisphere === 'NORTH';
+  const keyField = isNorth ? 'northCollectionKey' : 'southCollectionKey';
+  const rows = await prisma.playerProduct.groupBy({
+    by: [keyField],
+    where: {
+      companyId,
+      isActive: true,
+      isUnlocked: true,
+      [keyField]: { not: null },
+    },
+    _count: { id: true },
+  });
+  const counts: Record<string, number> = {};
+  for (const row of rows) {
+    const key = row[keyField];
+    if (key != null) counts[key] = row._count.id;
+  }
+  return counts;
+}
+
+/**
+ * Persist one milestone message if not already present (idempotent by dedupeKey).
+ */
+async function persistMilestone(
+  playerId: string,
+  dedupeKey: string,
+  title: string,
+  body: string,
+  ctaHref: string
+): Promise<'created' | 'skipped'> {
+  const existing = await prisma.playerMessage.findUnique({
+    where: {
+      playerId_dedupeKey: { playerId, dedupeKey },
+    },
+  });
+  if (existing) return 'skipped';
+  try {
+    await prisma.playerMessage.create({
+      data: {
+        playerId,
+        category: MessageCategory.MERCHANDISING,
+        department: DepartmentCode.MERCHANDISING,
+        level: MessageLevel.INFO,
+        kind: MessageKind.ACTION,
+        title,
+        body,
+        ctaType: MessageCtaType.GO_TO_PAGE,
+        ctaLabel: 'Design Offices',
+        ctaPayload: { route: ctaHref },
+        dedupeKey,
+      },
+    });
+    return 'created';
+  } catch (err: unknown) {
+    const code =
+      err && typeof err === 'object' && 'code' in err ? (err as { code: string }).code : '';
+    if (code === 'P2002') return 'skipped';
+    throw err;
+  }
+}
 
 export interface GuidanceTickResult {
   dayKey: string;
@@ -26,12 +110,14 @@ export interface GuidanceTickResult {
   skipped: number;
   messages: string[];
   reason?: string;
-  debug?: { nextWinLabel?: string; productCountNext?: number; draftsCount?: number };
+  debug?: {
+    milestonesFired?: MilestoneType[];
+    collectionCountsByCycleKey?: Record<string, number>;
+  };
 }
 
 /**
- * Run collection guidance for a company (no session required).
- * Use after advancing game day or from API with session-resolved companyId.
+ * Run collection guidance for a company. Call after advancing game day or from API with companyId.
  */
 export async function runGuidanceTickForCompany(companyId: string): Promise<GuidanceTickResult> {
   const company = await prisma.company.findUnique({
@@ -49,8 +135,9 @@ export async function runGuidanceTickForCompany(companyId: string): Promise<Guid
     };
   }
 
-  const dayKey = await getCompanyGameDayKey(companyId);
-  const dayKeyStr = formatDayKeyString(dayKey);
+  const dayKeyDate = await getCompanyGameDayKey(companyId);
+  const dayKey = dayKeyDate.toISOString().split('T')[0]!;
+  const playerId = company.playerId;
 
   const firstWarehouse = await prisma.companyBuilding.findFirst({
     where: { companyId, role: BuildingRole.WAREHOUSE },
@@ -60,99 +147,47 @@ export async function runGuidanceTickForCompany(companyId: string): Promise<Guid
   const hemisphere: Hemisphere =
     firstWarehouse?.country?.hemisphere === 'SOUTH' ? 'SOUTH' : 'NORTH';
 
-  const collectionResult = getCollectionWindow(dayKeyStr, hemisphere, { strict: false });
-  if (!collectionResult?.next) {
-    return {
-      dayKey: dayKeyStr,
-      hemisphere,
-      created: 0,
-      skipped: 0,
-      messages: [],
-      reason: 'no_next_collection_window',
-      debug: {},
-    };
-  }
+  const [collectionCountsByCycleKey, openWindows] = await Promise.all([
+    getCollectionCountsByCycleKey(companyId, hemisphere),
+    Promise.resolve(getOpenCollectionWindows(dayKey, hemisphere)),
+  ]);
 
-  const nextWin = collectionResult.next;
-  const startDate = parseDayKeyString(nextWin.startDayKey);
-  const endPlus1 = new Date(
-    parseDayKeyString(nextWin.endDayKey).getTime() + MS_PER_DAY
-  );
-
-  const productCountNext = await prisma.playerProduct.count({
-    where: {
-      companyId,
-      isActive: true,
-      isUnlocked: true,
-      OR: [
-        { launchedAtDayKey: { gte: startDate, lt: endPlus1 } },
-        {
-          launchedAtDayKey: null,
-          createdAt: { gte: startDate, lt: endPlus1 },
-        },
-      ],
-    },
-  });
-
-  const drafts = buildCollectionGuidance({
-    dayKey: dayKeyStr,
-    hemisphere,
-    nextWin,
-    productCountNext,
-  });
-
+  const milestonesFired: MilestoneType[] = [];
   const created: string[] = [];
   let skipped = 0;
 
-  for (const d of drafts) {
-    const existing = await prisma.playerMessage.findUnique({
-      where: {
-        playerId_dedupeKey: { playerId: company.playerId, dedupeKey: d.dedupeKey },
-      },
-    });
-    if (existing) {
-      skipped += 1;
-      continue;
-    }
+  const ctaHref = (w: CollectionWindow) =>
+    `/player/collections?season=${encodeURIComponent(w.seasonType === 'FW' ? 'WINTER' : 'SUMMER')}`;
 
-    try {
-      await prisma.playerMessage.create({
-        data: {
-          playerId: company.playerId,
-          category: (d.category as MessageCategory) ?? MessageCategory.MERCHANDISING,
-          department: DepartmentCode.MERCHANDISING,
-          level: (d.level as MessageLevel) ?? MessageLevel.INFO,
-          kind: (d.kind as MessageKind) ?? MessageKind.ACTION,
-          title: d.title,
-          body: d.body,
-          ctaType: MessageCtaType.GO_TO_PAGE,
-          ctaLabel: 'Design Offices',
-          ctaPayload: { route: d.ctaHref },
-          dedupeKey: d.dedupeKey,
-        },
-      });
-      created.push(d.dedupeKey);
-    } catch (err: unknown) {
-      const code =
-        err && typeof err === 'object' && 'code' in err ? (err as { code: string }).code : '';
-      if (code === 'P2002') {
-        skipped += 1;
-        continue;
-      }
-      throw err;
-    }
+  // A) Collection starts today — persist inbox message
+  for (const w of openWindows) {
+    if (w.startDayKey !== dayKey) continue;
+    const dedupeKey = buildDedupeKey('START_TODAY', hemisphere, w.cycleKey);
+    const result = await persistMilestone(
+      playerId,
+      dedupeKey,
+      'Collection starts today',
+      `${w.label} is now open. Start adding products to the collection.`,
+      ctaHref(w)
+    );
+    if (result === 'created') {
+      created.push(dedupeKey);
+      milestonesFired.push('START_TODAY');
+    } else skipped += 1;
   }
 
+  // START_IN_5D and REMINDER_7D are now UI-only guidance cards (guidance-rules.ts).
+  // No inbox persistence for these milestones.
+
   return {
-    dayKey: dayKeyStr,
+    dayKey,
     hemisphere,
     created: created.length,
     skipped,
     messages: created,
     debug: {
-      nextWinLabel: nextWin.label,
-      productCountNext,
-      draftsCount: drafts.length,
+      milestonesFired: milestonesFired.length ? milestonesFired : undefined,
+      collectionCountsByCycleKey,
     },
   };
 }

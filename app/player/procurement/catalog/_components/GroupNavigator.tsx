@@ -1,3 +1,5 @@
+// app/player/procurement/catalog/_components/GroupNavigator.tsx
+
 'use client';
 
 import { cn } from '@/lib/utils';

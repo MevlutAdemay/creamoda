@@ -1,3 +1,6 @@
+// components/shared/advance-day-panel.tsx
+
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';

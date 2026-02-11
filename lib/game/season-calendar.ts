@@ -1,15 +1,21 @@
+//app/lib/game/season-calendar.ts
+
 /**
  * Canonical season + collection calendar for ModaVerse.
- * Deterministic, purely functional (no Prisma, no API).
- * Data from Updated_modaverseSezonTakvimi.xlsx.
+ * PURE and DETERMINISTIC (no Prisma, no side effects).
+ * cycleKey = primary identifier (DB/logic); label = UI-only, never parsed.
  *
  * @example
- *   const sales = getSalesSeasonWindow('2026-05-01', 'NORTH');
- *   const coll = getCollectionWindow(new Date(), 'SOUTH', { strict: false });
+ *   const open = getOpenCollectionWindows('2026-05-01', 'NORTH');
+ *   const sales = getCurrentSalesSeason('2026-05-01', 'NORTH');
+ *   const nextColl = getNextCollectionWindow('2026-05-01', 'NORTH');
  */
 
 export type Hemisphere = 'NORTH' | 'SOUTH';
 export type SeasonKey = 'WINTER' | 'SUMMER';
+export type SeasonType = 'FW' | 'SS';
+
+/** All valid cycle keys (NORTH + SOUTH). Used in DB snapshot fields. */
 export type CollectionKey =
   | 'FW2526' | 'SS26' | 'FW2627' | 'SS27' | 'FW2728' | 'SS28' | 'FW2829' | 'SS29' | 'FW2930' | 'SS30' | 'FW30'
   | 'SS2526' | 'FW26' | 'SS2627' | 'FW27' | 'SS2728' | 'FW28' | 'SS2829' | 'FW29' | 'SS2930';
@@ -19,15 +25,26 @@ export interface DateRange {
   endDayKey: string;
 }
 
-export interface SalesSeasonWindow extends DateRange {
+/** Collection window: cycleKey is primary; label is UI-only. */
+export interface CollectionWindow extends DateRange {
   hemisphere: Hemisphere;
-  season: SeasonKey;
+  seasonType: SeasonType;
+  cycleKey: string;
   label: string;
 }
 
-export interface CollectionWindow extends DateRange {
+export interface SalesSeasonWindow extends DateRange {
   hemisphere: Hemisphere;
-  key: CollectionKey;
+  season: SeasonKey;
+  seasonType: SeasonType;
+  cycleKey: string;
+  label: string;
+}
+
+/** Returned by getCurrentSalesSeason for guidance/rules. */
+export interface CurrentSalesSeason {
+  seasonType: SeasonType;
+  cycleKey: string;
   label: string;
 }
 
@@ -43,64 +60,64 @@ const MAX_DAYKEY = '2030-09-05';
 // SALES — NORTH (exact ranges from spec)
 // ---------------------------------------------------------------------------
 const SALES_NORTH: SalesSeasonWindow[] = [
-  { hemisphere: 'NORTH', season: 'WINTER', label: 'FW-25/26', startDayKey: '2025-09-10', endDayKey: '2026-03-10' },
-  { hemisphere: 'NORTH', season: 'SUMMER', label: 'SS-26', startDayKey: '2026-03-11', endDayKey: '2026-09-05' },
-  { hemisphere: 'NORTH', season: 'WINTER', label: 'FW-26/27', startDayKey: '2026-09-06', endDayKey: '2027-03-10' },
-  { hemisphere: 'NORTH', season: 'SUMMER', label: 'SS-27', startDayKey: '2027-03-11', endDayKey: '2027-09-05' },
-  { hemisphere: 'NORTH', season: 'WINTER', label: 'FW-27/28', startDayKey: '2027-09-06', endDayKey: '2028-03-10' },
-  { hemisphere: 'NORTH', season: 'SUMMER', label: 'SS-28', startDayKey: '2028-03-11', endDayKey: '2028-09-05' },
-  { hemisphere: 'NORTH', season: 'WINTER', label: 'FW-28/29', startDayKey: '2028-09-06', endDayKey: '2029-03-10' },
-  { hemisphere: 'NORTH', season: 'SUMMER', label: 'SS-29', startDayKey: '2029-03-11', endDayKey: '2029-09-05' },
-  { hemisphere: 'NORTH', season: 'WINTER', label: 'FW-29/30', startDayKey: '2029-09-06', endDayKey: '2030-03-10' },
-  { hemisphere: 'NORTH', season: 'SUMMER', label: 'SS-30', startDayKey: '2030-03-11', endDayKey: '2030-09-05' },
+  { hemisphere: 'NORTH', season: 'WINTER', seasonType: 'FW', cycleKey: 'FW2526', label: 'FW-25/26', startDayKey: '2025-09-10', endDayKey: '2026-03-10' },
+  { hemisphere: 'NORTH', season: 'SUMMER', seasonType: 'SS', cycleKey: 'SS26', label: 'SS-26', startDayKey: '2026-03-11', endDayKey: '2026-09-05' },
+  { hemisphere: 'NORTH', season: 'WINTER', seasonType: 'FW', cycleKey: 'FW2627', label: 'FW-26/27', startDayKey: '2026-09-06', endDayKey: '2027-03-10' },
+  { hemisphere: 'NORTH', season: 'SUMMER', seasonType: 'SS', cycleKey: 'SS27', label: 'SS-27', startDayKey: '2027-03-11', endDayKey: '2027-09-05' },
+  { hemisphere: 'NORTH', season: 'WINTER', seasonType: 'FW', cycleKey: 'FW2728', label: 'FW-27/28', startDayKey: '2027-09-06', endDayKey: '2028-03-10' },
+  { hemisphere: 'NORTH', season: 'SUMMER', seasonType: 'SS', cycleKey: 'SS28', label: 'SS-28', startDayKey: '2028-03-11', endDayKey: '2028-09-05' },
+  { hemisphere: 'NORTH', season: 'WINTER', seasonType: 'FW', cycleKey: 'FW2829', label: 'FW-28/29', startDayKey: '2028-09-06', endDayKey: '2029-03-10' },
+  { hemisphere: 'NORTH', season: 'SUMMER', seasonType: 'SS', cycleKey: 'SS29', label: 'SS-29', startDayKey: '2029-03-11', endDayKey: '2029-09-05' },
+  { hemisphere: 'NORTH', season: 'WINTER', seasonType: 'FW', cycleKey: 'FW2930', label: 'FW-29/30', startDayKey: '2029-09-06', endDayKey: '2030-03-10' },
+  { hemisphere: 'NORTH', season: 'SUMMER', seasonType: 'SS', cycleKey: 'SS30', label: 'SS-30', startDayKey: '2030-03-11', endDayKey: '2030-09-05' },
 ];
 
 // ---------------------------------------------------------------------------
 // SALES — SOUTH
 // ---------------------------------------------------------------------------
 const SALES_SOUTH: SalesSeasonWindow[] = [
-  { hemisphere: 'SOUTH', season: 'SUMMER', label: 'SS-25/26', startDayKey: '2025-09-15', endDayKey: '2026-02-28' },
-  { hemisphere: 'SOUTH', season: 'WINTER', label: 'FW-26', startDayKey: '2026-03-01', endDayKey: '2026-09-02' },
-  { hemisphere: 'SOUTH', season: 'SUMMER', label: 'SS-26/27', startDayKey: '2026-09-03', endDayKey: '2027-02-28' },
-  { hemisphere: 'SOUTH', season: 'WINTER', label: 'FW-27', startDayKey: '2027-03-01', endDayKey: '2027-09-02' },
-  { hemisphere: 'SOUTH', season: 'SUMMER', label: 'SS-27/28', startDayKey: '2027-09-03', endDayKey: '2028-02-28' },
-  { hemisphere: 'SOUTH', season: 'WINTER', label: 'FW-28', startDayKey: '2028-03-01', endDayKey: '2028-09-02' },
-  { hemisphere: 'SOUTH', season: 'SUMMER', label: 'SS-28/29', startDayKey: '2028-09-03', endDayKey: '2029-02-28' },
-  { hemisphere: 'SOUTH', season: 'WINTER', label: 'FW-29', startDayKey: '2029-03-01', endDayKey: '2029-09-02' },
-  { hemisphere: 'SOUTH', season: 'SUMMER', label: 'SS-29/30', startDayKey: '2029-09-03', endDayKey: '2030-02-28' },
-  { hemisphere: 'SOUTH', season: 'WINTER', label: 'FW-30', startDayKey: '2030-03-01', endDayKey: '2030-09-02' },
+  { hemisphere: 'SOUTH', season: 'SUMMER', seasonType: 'SS', cycleKey: 'SS2526', label: 'SS-25/26', startDayKey: '2025-09-15', endDayKey: '2026-02-28' },
+  { hemisphere: 'SOUTH', season: 'WINTER', seasonType: 'FW', cycleKey: 'FW26', label: 'FW-26', startDayKey: '2026-03-01', endDayKey: '2026-09-02' },
+  { hemisphere: 'SOUTH', season: 'SUMMER', seasonType: 'SS', cycleKey: 'SS2627', label: 'SS-26/27', startDayKey: '2026-09-03', endDayKey: '2027-02-28' },
+  { hemisphere: 'SOUTH', season: 'WINTER', seasonType: 'FW', cycleKey: 'FW27', label: 'FW-27', startDayKey: '2027-03-01', endDayKey: '2027-09-02' },
+  { hemisphere: 'SOUTH', season: 'SUMMER', seasonType: 'SS', cycleKey: 'SS2728', label: 'SS-27/28', startDayKey: '2027-09-03', endDayKey: '2028-02-28' },
+  { hemisphere: 'SOUTH', season: 'WINTER', seasonType: 'FW', cycleKey: 'FW28', label: 'FW-28', startDayKey: '2028-03-01', endDayKey: '2028-09-02' },
+  { hemisphere: 'SOUTH', season: 'SUMMER', seasonType: 'SS', cycleKey: 'SS2829', label: 'SS-28/29', startDayKey: '2028-09-03', endDayKey: '2029-02-28' },
+  { hemisphere: 'SOUTH', season: 'WINTER', seasonType: 'FW', cycleKey: 'FW29', label: 'FW-29', startDayKey: '2029-03-01', endDayKey: '2029-09-02' },
+  { hemisphere: 'SOUTH', season: 'SUMMER', seasonType: 'SS', cycleKey: 'SS2930', label: 'SS-29/30', startDayKey: '2029-09-03', endDayKey: '2030-02-28' },
+  { hemisphere: 'SOUTH', season: 'WINTER', seasonType: 'FW', cycleKey: 'FW30', label: 'FW-30', startDayKey: '2030-03-01', endDayKey: '2030-09-02' },
 ];
 
 // ---------------------------------------------------------------------------
-// COLLECTION — NORTH (product snapshot windows)
+// COLLECTION — NORTH (product snapshot windows; overlapping is valid)
 // ---------------------------------------------------------------------------
 const COLLECTION_NORTH: CollectionWindow[] = [
-  { hemisphere: 'NORTH', key: 'FW2526', label: 'FW-25/26', startDayKey: '2025-09-10', endDayKey: '2026-02-25' },
-  { hemisphere: 'NORTH', key: 'SS26', label: 'SS-26', startDayKey: '2025-10-01', endDayKey: '2026-08-25' },
-  { hemisphere: 'NORTH', key: 'FW2627', label: 'FW-26/27', startDayKey: '2026-04-01', endDayKey: '2027-02-25' },
-  { hemisphere: 'NORTH', key: 'SS27', label: 'SS-27', startDayKey: '2026-10-01', endDayKey: '2027-08-25' },
-  { hemisphere: 'NORTH', key: 'FW2728', label: 'FW-27/28', startDayKey: '2027-04-01', endDayKey: '2028-02-25' },
-  { hemisphere: 'NORTH', key: 'SS28', label: 'SS-28', startDayKey: '2027-10-01', endDayKey: '2028-08-25' },
-  { hemisphere: 'NORTH', key: 'FW2829', label: 'FW-28/29', startDayKey: '2028-04-01', endDayKey: '2029-02-25' },
-  { hemisphere: 'NORTH', key: 'SS29', label: 'SS-29', startDayKey: '2028-10-01', endDayKey: '2029-08-25' },
-  { hemisphere: 'NORTH', key: 'FW2930', label: 'FW-29/30', startDayKey: '2029-04-01', endDayKey: '2030-02-25' },
-  { hemisphere: 'NORTH', key: 'SS30', label: 'SS-30', startDayKey: '2029-10-01', endDayKey: '2030-08-25' },
+  { hemisphere: 'NORTH', seasonType: 'FW', cycleKey: 'FW2526', label: 'FW-25/26', startDayKey: '2025-09-10', endDayKey: '2026-02-25' },
+  { hemisphere: 'NORTH', seasonType: 'SS', cycleKey: 'SS26', label: 'SS-26', startDayKey: '2025-10-01', endDayKey: '2026-08-25' },
+  { hemisphere: 'NORTH', seasonType: 'FW', cycleKey: 'FW2627', label: 'FW-26/27', startDayKey: '2026-04-01', endDayKey: '2027-02-25' },
+  { hemisphere: 'NORTH', seasonType: 'SS', cycleKey: 'SS27', label: 'SS-27', startDayKey: '2026-10-01', endDayKey: '2027-08-25' },
+  { hemisphere: 'NORTH', seasonType: 'FW', cycleKey: 'FW2728', label: 'FW-27/28', startDayKey: '2027-04-01', endDayKey: '2028-02-25' },
+  { hemisphere: 'NORTH', seasonType: 'SS', cycleKey: 'SS28', label: 'SS-28', startDayKey: '2027-10-01', endDayKey: '2028-08-25' },
+  { hemisphere: 'NORTH', seasonType: 'FW', cycleKey: 'FW2829', label: 'FW-28/29', startDayKey: '2028-04-01', endDayKey: '2029-02-25' },
+  { hemisphere: 'NORTH', seasonType: 'SS', cycleKey: 'SS29', label: 'SS-29', startDayKey: '2028-10-01', endDayKey: '2029-08-25' },
+  { hemisphere: 'NORTH', seasonType: 'FW', cycleKey: 'FW2930', label: 'FW-29/30', startDayKey: '2029-04-01', endDayKey: '2030-02-25' },
+  { hemisphere: 'NORTH', seasonType: 'SS', cycleKey: 'SS30', label: 'SS-30', startDayKey: '2029-10-01', endDayKey: '2030-08-25' },
 ];
 
 // ---------------------------------------------------------------------------
 // COLLECTION — SOUTH
 // ---------------------------------------------------------------------------
 const COLLECTION_SOUTH: CollectionWindow[] = [
-  { hemisphere: 'SOUTH', key: 'SS2526', label: 'SS-25/26', startDayKey: '2025-09-10', endDayKey: '2026-02-20' },
-  { hemisphere: 'SOUTH', key: 'FW26', label: 'FW-26', startDayKey: '2025-10-05', endDayKey: '2026-08-15' },
-  { hemisphere: 'SOUTH', key: 'SS2627', label: 'SS-26/27', startDayKey: '2026-04-10', endDayKey: '2027-02-20' },
-  { hemisphere: 'SOUTH', key: 'FW27', label: 'FW-27', startDayKey: '2026-10-05', endDayKey: '2027-08-15' },
-  { hemisphere: 'SOUTH', key: 'SS2728', label: 'SS-27/28', startDayKey: '2027-04-10', endDayKey: '2028-02-20' },
-  { hemisphere: 'SOUTH', key: 'FW28', label: 'FW-28', startDayKey: '2027-10-05', endDayKey: '2028-08-15' },
-  { hemisphere: 'SOUTH', key: 'SS2829', label: 'SS-28/29', startDayKey: '2028-04-10', endDayKey: '2029-02-20' },
-  { hemisphere: 'SOUTH', key: 'FW29', label: 'FW-29', startDayKey: '2028-10-05', endDayKey: '2029-08-15' },
-  { hemisphere: 'SOUTH', key: 'SS2930', label: 'SS-29/30', startDayKey: '2029-04-10', endDayKey: '2030-02-20' },
-  { hemisphere: 'SOUTH', key: 'FW30', label: 'FW-30', startDayKey: '2029-10-05', endDayKey: '2030-08-15' },
+  { hemisphere: 'SOUTH', seasonType: 'SS', cycleKey: 'SS2526', label: 'SS-25/26', startDayKey: '2025-09-10', endDayKey: '2026-02-20' },
+  { hemisphere: 'SOUTH', seasonType: 'FW', cycleKey: 'FW26', label: 'FW-26', startDayKey: '2025-10-05', endDayKey: '2026-08-15' },
+  { hemisphere: 'SOUTH', seasonType: 'SS', cycleKey: 'SS2627', label: 'SS-26/27', startDayKey: '2026-04-10', endDayKey: '2027-02-20' },
+  { hemisphere: 'SOUTH', seasonType: 'FW', cycleKey: 'FW27', label: 'FW-27', startDayKey: '2026-10-05', endDayKey: '2027-08-15' },
+  { hemisphere: 'SOUTH', seasonType: 'SS', cycleKey: 'SS2728', label: 'SS-27/28', startDayKey: '2027-04-10', endDayKey: '2028-02-20' },
+  { hemisphere: 'SOUTH', seasonType: 'FW', cycleKey: 'FW28', label: 'FW-28', startDayKey: '2027-10-05', endDayKey: '2028-08-15' },
+  { hemisphere: 'SOUTH', seasonType: 'SS', cycleKey: 'SS2829', label: 'SS-28/29', startDayKey: '2028-04-10', endDayKey: '2029-02-20' },
+  { hemisphere: 'SOUTH', seasonType: 'FW', cycleKey: 'FW29', label: 'FW-29', startDayKey: '2028-10-05', endDayKey: '2029-08-15' },
+  { hemisphere: 'SOUTH', seasonType: 'SS', cycleKey: 'SS2930', label: 'SS-29/30', startDayKey: '2029-04-10', endDayKey: '2030-02-20' },
+  { hemisphere: 'SOUTH', seasonType: 'FW', cycleKey: 'FW30', label: 'FW-30', startDayKey: '2029-10-05', endDayKey: '2030-08-15' },
 ];
 
 const SALES_WINDOWS: Record<Hemisphere, SalesSeasonWindow[]> = {
@@ -151,7 +168,7 @@ export function parseDayKey(dayKey: Date | string): string {
 }
 
 /**
- * Inclusive: start <= dayKey <= end (all YYYY-MM-DD strings).
+ * Inclusive: start <= dayKey <= end (YYYY-MM-DD lexicographic compare is safe).
  */
 export function isWithinRange(dayKey: string, rangeStart: string, rangeEnd: string): boolean {
   return dayKey >= rangeStart && dayKey <= rangeEnd;
@@ -249,6 +266,37 @@ export function getCollectionWindow(
 }
 
 /**
+ * Current ACTIVE SALES season window for the given dayKey and hemisphere.
+ * Returns the full SalesSeasonWindow where startDayKey <= dayKey <= endDayKey, or null.
+ */
+export function getCurrentSalesSeason(
+  dayKey: string,
+  hemisphere: Hemisphere
+): SalesSeasonWindow | null {
+  const dayKeyStr = typeof dayKey === 'string' ? dayKey : parseDayKey(dayKey);
+  if (!isInSupportedRange(dayKeyStr)) return null;
+  return findCurrentWindow(SALES_WINDOWS[hemisphere], dayKeyStr);
+}
+
+/**
+ * Next COLLECTION window whose startDayKey is strictly after dayKey (first upcoming).
+ * Returns null if no such window (e.g. dayKey is in or past the last window).
+ */
+export function getNextCollectionWindow(
+  dayKey: string,
+  hemisphere: Hemisphere
+): CollectionWindow | null {
+  const dayKeyStr = typeof dayKey === 'string' ? dayKey : parseDayKey(dayKey);
+  if (!isInSupportedRange(dayKeyStr)) return null;
+  const windows = COLLECTION_WINDOWS[hemisphere];
+  for (let i = 0; i < windows.length; i++) {
+    const w = windows[i]!;
+    if (w.startDayKey > dayKeyStr) return w;
+  }
+  return null;
+}
+
+/**
  * Returns only the current SALES season window (no next). Use when dayKey may be in the last window.
  */
 export function getCurrentSalesWindow(
@@ -272,13 +320,13 @@ export function getCurrentCollectionWindow(
 
 /**
  * Returns ALL collection windows where startDayKey <= dayKey <= endDayKey (inclusive).
- * Can return 1 or 2 windows when they overlap by design.
+ * Overlapping windows are valid (e.g. FW sales while SS planning); can return 1 or 2.
  */
 export function getOpenCollectionWindows(
-  dayKey: Date | string,
+  dayKey: string,
   hemisphere: Hemisphere
 ): CollectionWindow[] {
-  const dayKeyStr = parseDayKey(dayKey);
+  const dayKeyStr = typeof dayKey === 'string' ? dayKey : parseDayKey(dayKey);
   if (!isInSupportedRange(dayKeyStr)) return [];
   const windows = COLLECTION_WINDOWS[hemisphere];
   return windows.filter((w) => isWithinRange(dayKeyStr, w.startDayKey, w.endDayKey));
@@ -286,7 +334,6 @@ export function getOpenCollectionWindows(
 
 /**
  * Thin wrapper: active SALES season key (WINTER or SUMMER) for the given dayKey and hemisphere.
- * Throws if dayKey is outside range or in a gap. Uses current window only (does not require a "next").
  */
 export function getActiveSeasonKey(dayKey: Date | string, hemisphere: Hemisphere): SeasonKey {
   const dayKeyStr = parseDayKey(dayKey);
@@ -304,7 +351,7 @@ export function getActiveSeasonKey(dayKey: Date | string, hemisphere: Hemisphere
 
 /**
  * Current COLLECTION cycle label for the given dayKey and hemisphere (e.g. "FW-25/26", "SS-26").
- * Returns empty string if dayKey is outside range or in a gap (non-strict: getCollectionWindow with strict false).
+ * Returns empty string if dayKey is outside range or in a gap.
  */
 export function getCurrentCollectionLabel(dayKey: Date | string, hemisphere: Hemisphere): string {
   try {
@@ -316,13 +363,33 @@ export function getCurrentCollectionLabel(dayKey: Date | string, hemisphere: Hem
   }
 }
 
+/**
+ * Returns the collection snapshot (cycleKey, label) for a product added on dayKey in the given hemisphere.
+ * Used when creating PlayerProduct: only WINTER | SUMMER; ALL is handled by caller (null).
+ * Picks the open window matching productSeason (WINTER→FW, SUMMER→SS); if multiple open, first by startDayKey.
+ */
+export function getCollectionSnapshotForProduct(
+  dayKey: string,
+  hemisphere: Hemisphere,
+  productSeason: SeasonKey
+): { cycleKey: string; label: string } | null {
+  const dayKeyStr = typeof dayKey === 'string' ? dayKey : parseDayKey(dayKey);
+  const seasonType: SeasonType = productSeason === 'WINTER' ? 'FW' : 'SS';
+  const open = getOpenCollectionWindows(dayKeyStr, hemisphere);
+  const matching = open.filter((w) => w.seasonType === seasonType);
+  if (matching.length === 0) return null;
+  matching.sort((a, b) => a.startDayKey.localeCompare(b.startDayKey));
+  const w = matching[0]!;
+  return { cycleKey: w.cycleKey, label: w.label };
+}
+
 // ---------------------------------------------------------------------------
 // Validation (for dev / tests)
 // ---------------------------------------------------------------------------
 
 /**
- * Validates calendar data: start <= end, sorted by startDayKey; no overlap for SALES only
- * (COLLECTION windows intentionally overlap). Call in dev or from tests.
+ * Validates calendar data: start <= end, sorted by startDayKey; no overlap for SALES only.
+ * Call in dev or from tests.
  */
 export function validateCalendar(): { valid: boolean; errors: string[] } {
   const errors: string[] = [];

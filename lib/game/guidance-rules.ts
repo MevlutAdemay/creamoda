@@ -1,96 +1,217 @@
+//app/lib/game/guidance-rules.ts
+
 /**
- * Pure rule engine for collection-related guidance messages.
- * No Prisma; used by the guidance tick API.
- *
- * Sanity: For NORTH, next SS-26 starts 2025-10-01.
- * - dayKey 2025-09-26 -> daysUntilNextStart === 5 -> UPCOMING_5D.
- * - dayKey 2025-10-01 -> daysUntilNextStart === 0 -> START_TODAY.
- * - dayKey 2025-10-08 -> daysSinceNextStart === 7 -> REMINDER_7D.
+ * Pure rule engine for guidance. No Prisma, no side effects.
+ * INPUT: GuidanceFacts (dayKey, hemisphere, openCollections, counts, activeSalesSeason, staff).
+ * OUTPUT: At most one GuidanceCard (highest priority).
  */
 
-import type { CollectionWindow } from './season-calendar';
-import type { Hemisphere } from './season-calendar';
+import type { CollectionWindow, Hemisphere, SalesSeasonWindow } from './season-calendar';
+import { getOpenCollectionWindows } from './season-calendar';
+
+export type OwnerRole = 'Designer' | 'Buyer' | 'Ops';
+export type GuidanceSeverity = 'urgent' | 'warning' | 'info';
+
+export type FlowStepDepartment = 'DESIGN' | 'BUYING';
+
+export interface GuidanceCardStep {
+  department: FlowStepDepartment;
+  staffName: string | null;
+  messageKey: string;
+  params: Record<string, unknown>;
+}
+
+export interface GuidanceCard {
+  id: string;
+  ownerRole: OwnerRole;
+  severity: GuidanceSeverity;
+  messageKey: string;
+  params: Record<string, unknown>;
+  ctaHref: string;
+  uiVariant?: 'FLOW' | 'SIMPLE';
+  steps?: GuidanceCardStep[];
+  ctaLabelKey?: string;
+}
+
+export interface GuidanceFacts {
+  dayKey: string;
+  hemisphere: Hemisphere;
+  openCollections: CollectionWindow[];
+  collectionCountsByCycleKey: Record<string, number>;
+  activeSalesSeason: SalesSeasonWindow | null;
+  staff: { designStaffName: string | null; buyingStaffName: string | null };
+}
 
 const MS_PER_DAY = 86400000;
 
-export interface GuidanceMessageDraft {
-  dedupeKey: string;
-  title: string;
-  body: string;
-  ctaHref: string;
-  kind?: string;
-  level?: string;
-  category?: string;
+export function addDaysToDayKey(dayKey: string, days: number): string {
+  const d = new Date(`${dayKey}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
-/**
- * Days from a to b (UTC midnight). Positive when b is after a.
- * Example: diffDaysDayKey('2025-09-26', '2025-10-01') === 5
- */
 export function diffDaysDayKey(a: string, b: string): number {
   const tA = new Date(`${a}T00:00:00.000Z`).getTime();
   const tB = new Date(`${b}T00:00:00.000Z`).getTime();
   return Math.round((tB - tA) / MS_PER_DAY);
 }
 
-export interface BuildCollectionGuidanceParams {
-  dayKey: string;
-  hemisphere: Hemisphere;
-  nextWin: CollectionWindow;
-  productCountNext: number;
+function seasonFromWindow(w: CollectionWindow): string {
+  return w.seasonType === 'FW' ? 'WINTER' : 'SUMMER';
+}
+
+function buildCtaHref(season: string): string {
+  return `/player/collections?season=${encodeURIComponent(season)}`;
 }
 
 /**
- * Builds 0–3 collection guidance drafts based on calendar and product count.
- * Only generates when productCountNext === 0 (user has no products in next window).
+ * Evaluate rules and return at most one card (highest priority).
+ * Priority 0: Season kickoff flow (sales started today, 0 products for that cycle).
+ * Priority 1: Collection just opened AND productCount === 0.
+ * Priority 2: 5 days before collection start (START_IN_5D).
+ * Priority 3: 7 days after start AND still 0 products (REMINDER_7D).
  */
-export function buildCollectionGuidance(params: BuildCollectionGuidanceParams): GuidanceMessageDraft[] {
-  const { dayKey, hemisphere, nextWin, productCountNext } = params;
-  const drafts: GuidanceMessageDraft[] = [];
+export function evaluateGuidance(facts: GuidanceFacts): GuidanceCard[] {
+  const { dayKey, hemisphere, openCollections, collectionCountsByCycleKey, activeSalesSeason, staff } = facts;
+  const candidates: { card: GuidanceCard; priority: number; startDayKey: string }[] = [];
 
-  if (productCountNext > 0) return drafts;
+  // Priority 0: Season kickoff — sales started today, 0 products for active season cycle
+  if (activeSalesSeason && dayKey === activeSalesSeason.startDayKey) {
+    const count = collectionCountsByCycleKey[activeSalesSeason.cycleKey] ?? 0;
+    if (count === 0) {
+      const seasonLabel = activeSalesSeason.label;
+      const season = activeSalesSeason.season;
+      candidates.push({
+        priority: 0,
+        startDayKey: activeSalesSeason.startDayKey,
+        card: {
+          id: `guidance-flow-seasonKickoff-${activeSalesSeason.cycleKey}-${dayKey}`,
+          ownerRole: 'Designer',
+          severity: 'urgent',
+          messageKey: 'guidance.flow.seasonKickoff.title',
+          params: {
+            label: seasonLabel,
+            cycleKey: activeSalesSeason.cycleKey,
+            season,
+            hemisphere,
+          },
+          ctaHref: buildCtaHref(season),
+          uiVariant: 'FLOW',
+          ctaLabelKey: 'guidance.flow.seasonKickoff.cta',
+          steps: [
+            {
+              department: 'DESIGN',
+              staffName: staff.designStaffName,
+              messageKey: 'guidance.flow.seasonKickoff.step1',
+              params: { seasonLabel, season },
+            },
+            {
+              department: 'DESIGN',
+              staffName: staff.designStaffName,
+              messageKey: 'guidance.flow.seasonKickoff.step2',
+              params: { seasonLabel, season, timings: ['EARLY', 'CORE', 'LATE'] },
+            },
+            {
+              department: 'BUYING',
+              staffName: staff.buyingStaffName,
+              messageKey: 'guidance.flow.seasonKickoff.step3',
+              params: { seasonLabel, season },
+            },
+          ],
+        },
+      });
+    }
+  }
 
-  const daysUntilNextStart = diffDaysDayKey(dayKey, nextWin.startDayKey);
-  const daysSinceNextStart = diffDaysDayKey(nextWin.startDayKey, dayKey);
+  // Priority 1: Collection just opened AND count === 0
+  for (const win of openCollections) {
+    if (win.startDayKey !== dayKey) continue;
+    const count = collectionCountsByCycleKey[win.cycleKey] ?? 0;
+    if (count > 0) continue;
 
-  // UPCOMING_5D: 5 days before next collection starts
-  if (daysUntilNextStart === 5) {
-    drafts.push({
-      dedupeKey: `GUIDE:COLL:UPCOMING_5D:${hemisphere}:${nextWin.label}`,
-      title: 'Next collection starts in 5 days',
-      body: `Your ${nextWin.label} collection window starts on ${nextWin.startDayKey}. Add at least 1 product to avoid falling behind.`,
-      ctaHref: '/player/designoffices',
-      kind: 'ACTION',
-      level: 'INFO',
-      category: 'MERCHANDISING',
+    candidates.push({
+      priority: 1,
+      startDayKey: win.startDayKey,
+      card: {
+        id: `guidance-start-${win.cycleKey}-${dayKey}`,
+        ownerRole: 'Designer',
+        severity: 'urgent',
+        uiVariant: 'SIMPLE',
+        messageKey: 'guidance.collection.startToday',
+        params: {
+          label: win.label,
+          cycleKey: win.cycleKey,
+          hemisphere,
+          seasonType: win.seasonType,
+        },
+        ctaHref: buildCtaHref(seasonFromWindow(win)),
+        ctaLabelKey: 'guidance.collection.startToday.cta',
+      },
     });
   }
 
-  // START_TODAY: today is the first day of next collection
-  if (daysUntilNextStart === 0) {
-    drafts.push({
-      dedupeKey: `GUIDE:COLL:START_TODAY:${hemisphere}:${nextWin.label}`,
-      title: 'Collection starts today',
-      body: `${nextWin.label} is now open. Start adding products to the collection.`,
-      ctaHref: '/player/designoffices',
-      kind: 'ACTION',
-      level: 'INFO',
-      category: 'MERCHANDISING',
+  // Priority 2: 5 days before collection start (START_IN_5D)
+  const dayKeyPlus5 = addDaysToDayKey(dayKey, 5);
+  const windowsIn5Days = getOpenCollectionWindows(dayKeyPlus5, hemisphere).filter(
+    (w) => w.startDayKey === dayKeyPlus5
+  );
+  for (const win of windowsIn5Days) {
+    candidates.push({
+      priority: 2,
+      startDayKey: win.startDayKey,
+      card: {
+        id: `guide-ui-startin5d-${win.cycleKey}-${dayKey}`,
+        ownerRole: 'Designer',
+        severity: 'info',
+        uiVariant: 'SIMPLE',
+        messageKey: 'guidance.collection.startIn5d',
+        params: {
+          label: win.label,
+          startDayKey: win.startDayKey,
+          cycleKey: win.cycleKey,
+          hemisphere,
+        },
+        ctaHref: buildCtaHref(seasonFromWindow(win)),
+        ctaLabelKey: 'guidance.collection.startIn5d.cta',
+      },
     });
   }
 
-  // REMINDER_7D: 7 days after next collection started, still 0 products
-  if (daysSinceNextStart === 7) {
-    drafts.push({
-      dedupeKey: `GUIDE:COLL:REMINDER_7D:${hemisphere}:${nextWin.label}`,
-      title: 'Collection reminder',
-      body: `It's been a week since ${nextWin.label} opened and you still have 0 products in the collection.`,
-      ctaHref: '/player/designoffices',
-      kind: 'ACTION',
-      level: 'WARNING',
-      category: 'MERCHANDISING',
+  // Priority 3: 7 days after start AND still 0 products (REMINDER_7D)
+  const dayKeyMinus7 = addDaysToDayKey(dayKey, -7);
+  for (const win of openCollections) {
+    if (win.startDayKey !== dayKeyMinus7) continue;
+    const count = collectionCountsByCycleKey[win.cycleKey] ?? 0;
+    if (count > 0) continue;
+
+    candidates.push({
+      priority: 3,
+      startDayKey: win.startDayKey,
+      card: {
+        id: `guide-ui-reminder7d-${win.cycleKey}-${dayKey}`,
+        ownerRole: 'Designer',
+        severity: 'urgent',
+        uiVariant: 'SIMPLE',
+        messageKey: 'guidance.collection.reminder7d',
+        params: {
+          label: win.label,
+          cycleKey: win.cycleKey,
+          hemisphere,
+        },
+        ctaHref: buildCtaHref(seasonFromWindow(win)),
+        ctaLabelKey: 'guidance.collection.reminder7d.cta',
+      },
     });
   }
 
-  return drafts;
+  if (candidates.length === 0) return [];
+
+  candidates.sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    return a.startDayKey.localeCompare(b.startDayKey);
+  });
+  return [candidates[0]!.card];
 }

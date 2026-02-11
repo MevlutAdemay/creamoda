@@ -18,7 +18,9 @@ import {
   Prisma,
   MetricType,
 } from '@prisma/client';
-import { getCompanyGameDayKey } from '@/lib/game/game-clock';
+import { getCompanyGameDayKey, formatDayKeyString } from '@/lib/game/game-clock';
+import { getCollectionSnapshotForProduct } from '@/lib/game/season-calendar';
+import type { Hemisphere } from '@/lib/game/season-calendar';
 import { postWalletTransactionAndUpdateBalance } from '@/lib/finance/helpers';
 
 export async function POST(request: NextRequest) {
@@ -42,10 +44,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify user owns the company
+    // Verify user owns the company and get country hemisphere for collection snapshot
     const company = await prisma.company.findFirst({
       where: { id: companyId, playerId: session.user.id },
-      select: { id: true },
+      select: {
+        id: true,
+        country: { select: { hemisphere: true } },
+      },
     });
     if (!company) {
       return NextResponse.json({ error: 'Company not found' }, { status: 404 });
@@ -119,7 +124,7 @@ export async function POST(request: NextRequest) {
           };
         }
 
-        // Load template: economy fields (for overrides at creation time), code for internalSkuCode, unlock costs, and image templates with unlockType.
+        // Load template: economy fields (for overrides at creation time), code for internalSkuCode, unlock costs, productSeason, and image templates with unlockType.
         const template = await tx.productTemplate.findUnique({
           where: { id: productTemplateId },
           select: {
@@ -130,6 +135,7 @@ export async function POST(request: NextRequest) {
             suggestedSalePrice: true,
             unlockCostXp: true,
             unlockCostDiamond: true,
+            productSeason: true,
             productImageTemplates: {
               orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
               select: { id: true, sortOrder: true, unlockType: true, unlockCostXp: true, unlockCostDiamond: true },
@@ -162,8 +168,33 @@ export async function POST(request: NextRequest) {
         const unlockMethod: UnlockMethod =
           unlockCostXp > 0 ? UnlockMethod.XP : unlockCostDiamond > 0 ? UnlockMethod.DIAMOND : UnlockMethod.FREE;
 
+        // Collection snapshot: company hemisphere + productSeason + dayKey → cycleKey/label (season-calendar). EQUATOR or ALL → null.
+        const dayKeyStr = formatDayKeyString(dayKey);
+        const prismaHemisphere = company.country?.hemisphere;
+        const calendarHemisphere: Hemisphere | null =
+          prismaHemisphere === 'NORTH' ? 'NORTH' : prismaHemisphere === 'SOUTH' ? 'SOUTH' : null;
+        const useSnapshot =
+          calendarHemisphere &&
+          (template.productSeason === 'WINTER' || template.productSeason === 'SUMMER');
+        const seasonKey =
+          template.productSeason === 'WINTER' || template.productSeason === 'SUMMER'
+            ? template.productSeason
+            : null;
+        const snapshot =
+          useSnapshot && calendarHemisphere && seasonKey
+            ? getCollectionSnapshotForProduct(dayKeyStr, calendarHemisphere, seasonKey)
+            : null;
+        const northSnapshot =
+          calendarHemisphere === 'NORTH' && snapshot
+            ? { northCollectionKey: snapshot.cycleKey, northCollectionLabel: snapshot.label, northIntroducedAtDayKey: dayKey }
+            : { northCollectionKey: null, northCollectionLabel: null, northIntroducedAtDayKey: null };
+        const southSnapshot =
+          calendarHemisphere === 'SOUTH' && snapshot
+            ? { southCollectionKey: snapshot.cycleKey, southCollectionLabel: snapshot.label, southIntroducedAtDayKey: dayKey }
+            : { southCollectionKey: null, southCollectionLabel: null, southIntroducedAtDayKey: null };
+
         // Upsert PlayerProduct (idempotent on unique [companyId, productTemplateId]).
-        // Copy economy, code (internalSkuCode), and lifecycle from template/clock so critical fields are never null for new rows.
+        // Copy economy, code (internalSkuCode), lifecycle, and hemisphere collection snapshot from template/clock.
         const playerProduct = await tx.playerProduct.upsert({
           where: {
             companyId_productTemplateId: { companyId, productTemplateId },
@@ -181,6 +212,8 @@ export async function POST(request: NextRequest) {
             unlockMethod,
             unlockCostXp: unlockCostXp || null,
             unlockCostDiamond: unlockCostDiamond || null,
+            ...northSnapshot,
+            ...southSnapshot,
           },
           update: {
             isUnlocked: true,

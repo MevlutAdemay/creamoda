@@ -133,5 +133,41 @@
       "page": "Sayfa {current} / {total}",
       "noData": "Veri yok."
     }
+  },
+  "simulation": {
+    "nextDay": "Sonraki Gün",
+    "runningTitle": "Simülasyon çalışıyor…",
+    "steps": {
+      "1": "Günlük simülasyon başlatılıyor",
+      "2": "Oyun takvimi senkronize ediliyor",
+      "3": "Sezon bağlamı değerlendiriliyor",
+      "4": "Vitrin listeleri okunuyor",
+      "5": "Fiyat bantları doğrulanıyor",
+      "6": "Depo stokları kontrol ediliyor",
+      "7": "Stok tahsisi yapılıyor",
+      "8": "Siparişler oluşturuluyor",
+      "9": "Sevkiyatlar onaylanıyor",
+      "10": "Mutabakat işlemleri çalıştırılıyor",
+      "11": "Cüzdan ve gelen kutusu güncelleniyor",
+      "12": "Gün özeti kaydı tamamlanıyor"
+    }
+  },
+  "guidance": {
+    "flow": {
+      "seasonKickoff": {
+        "title": "Sezon Başladı",
+        "step1": "{seasonLabel} satış sezonu başladı !!\nÖnce koleksiyonu oluşturacağız. Bunun için bu sezonu şekillendirecek tasarım stüdyolarını ziyaret edeceğiz.",
+        "step2": "Koleksiyonu oluştururken ürünleri üç aşamada planlayacağız:\nEARLY: Vitrine ilk giren ürünler\nCORE: Sezon ortası satışları yönlendiren ana ürün grubu\nLATE: Sezon geçişi ve indirim dönemi ürünleri",
+        "step3": "Aktif satış sezonuna giren ürünler için hızlı toptan tedarik kullanacağız.\nFabrika üretimi genelde 5–7 hafta teslim süresi gerektirir.\nKoleksiyonu seçtikten sonra tedarik ve üretim planlamasına geçeceğiz.",
+        "cta": "Koleksiyon Oluştur"
+      },
+      "departmentDesign": "Tasarım",
+      "departmentBuying": "Satın Alma",
+      "next": "İleri"
+    },
+    "collection": {
+      "startToday": "{label} koleksiyonu bugün açıldı. İlk ürünlerinizi ekleyin.",
+      "reminder7d": "{label} koleksiyonu 7 gündür açık. Ürün eklemeyi düşünün."
+    }
   }
 }
