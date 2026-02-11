@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ManufacturingGroup, ProductQuality } from '@prisma/client';
+import { ManufacturingGroup, ProductQuality } from '@prisma/client';
 
 const codeSchema = z
   .string()
@@ -14,17 +14,8 @@ export const createFactorySchema = z
     name: z.string().min(2, 'Name 2–64 chars').max(64, 'Name 2–64 chars'),
     countryId: z.string().min(1, 'Country is required'),
     cityId: z.string().optional().nullable(),
-    manufacturingGroup: z.enum([
-      'JERSEY',
-      'WOVEN',
-      'DENIM',
-      'KNITWEAR',
-      'OUTERWEAR',
-      'LEATHER',
-      'FOOTWEAR',
-      'ACCESSORY',
-    ]) as z.ZodType<ManufacturingGroup>,
-    productQuality: z.enum(['STANDARD', 'PREMIUM', 'LUXURY']) as z.ZodType<ProductQuality>,
+    manufacturingGroup: z.nativeEnum(ManufacturingGroup),
+    productQuality: z.nativeEnum(ProductQuality),
     factoryTier: z.number().int().min(1).max(5),
     baseLeadTimeDays: z.number().int().positive('Must be positive'),
     baseDailyCapacity: z.number().int().positive('Must be positive'),
