@@ -211,7 +211,7 @@ export default async function PlayerPage() {
                           </Button>
                           {/* TODO: wire to dedicated collection detail page */}
                           <Button asChild variant="outline" size="sm">
-                            <Link href={`/player/production-plans?season=${season}`}>Production Plan</Link>
+                            <Link href={`/player/production-plans?season=${w.cycleKey}`}>Production Plan</Link>
                           </Button>
                         </div>
                       </CardContent>

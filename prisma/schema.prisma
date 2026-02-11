@@ -375,6 +375,31 @@ enum MessageTemplateCode {
   MARKETING_CAMPAIGN_EXPIRED
 }
 
+// ---- Production Plan (Procurement Planning) ----
+enum ProductionPlanStatus {
+  DRAFT
+  LOCKED
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+}
+
+enum ProcurementMode {
+  UNDECIDED
+  WHOLESALE
+  FACTORY
+  MIXED
+}
+
+enum ProductionLineStatus {
+  OPEN
+  WHOLESALE_SET
+  FACTORY_SET
+  ORDERED
+  RECEIVED
+  CANCELED
+}
+
 /**
  * ==================== USER ====================
  */
@@ -682,6 +707,8 @@ model Company {
   productMarketingCampaigns  ProductMarketingCampaign[]
   warehouseAwarenessStates   WarehouseAwarenessState[]
   companyGroupProcurementStates CompanyGroupProcurementState[]
+  productionPlans               ProductionPlan[]
+  productionPlanLines            ProductionPlanLine[]
 
   // Game clock (1-1)
   gameClock CompanyGameClock?
@@ -1475,8 +1502,9 @@ model PlayerProduct {
   buildingInventoryItems BuildingInventoryItem[] @relation("InventoryPlayerProduct")
   inventoryMovements InventoryMovement[] @relation("MovementPlayerProduct")
   modaverseOrderItems ModaverseOrderItem[]
+  productionPlanLines ProductionPlanLine[]
 
-    // =========================
+  // =========================
   // Hemisphere collection snapshot (MVP)
   // =========================
   northCollectionKey   String?  @db.VarChar(16)  // e.g. FW2526, SS26, SS2627
@@ -2673,4 +2701,68 @@ model CompanyGroupProcurementState {
   @@index([companyId])
   @@index([manufacturingGroup])
   @@map("company_group_procurement_states")
+}
+
+/**
+ * ==================== PRODUCTION PLAN (Procurement Planning) ====================
+ * Sezon bazlı niyet/karar katmanı. companyId + collectionKey => tek plan.
+ */
+
+model ProductionPlan {
+  id             String   @id @default(cuid())
+  companyId      String
+  collectionKey  String   // season query param, örn FW2526, SS2627
+  collectionLabel String? // UI label, örn FW-25/26
+  status         ProductionPlanStatus @default(DRAFT)
+  isActive       Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lines   ProductionPlanLine[]
+
+  @@unique([companyId, collectionKey])
+  @@index([companyId, collectionKey])
+  @@map("production_plans")
+}
+
+model ProductionPlanLine {
+  id                String @id @default(cuid())
+  productionPlanId  String
+  companyId         String
+  playerProductId   String
+
+  procurementMode   ProcurementMode   @default(UNDECIDED)
+  status            ProductionLineStatus @default(OPEN)
+
+  plannedTotalQty   Int?
+  wholesaleQty      Int    @default(0)
+  factoryQty        Int    @default(0)
+
+  // Factory hedef stok giriş tarihi (game clock UTC midnight standardı ile uyumlu)
+  needByDate DateTime?
+
+  // Opsiyonel: ileride simülasyon için
+  expectedReceiveDate DateTime?
+
+  // Plan satırı hangi siparişlere dönüştü?
+  wholesaleOrderId String?
+  factoryOrderId   String?
+
+  // Idempotency / double-click koruması için
+  lastActionKey String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  productionPlan ProductionPlan @relation(fields: [productionPlanId], references: [id], onDelete: Cascade)
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  playerProduct  PlayerProduct  @relation(fields: [playerProductId], references: [id], onDelete: Cascade)
+
+  @@unique([productionPlanId, playerProductId])
+  @@index([companyId, playerProductId])
+  @@index([companyId, procurementMode])
+  @@index([companyId, status])
+  @@map("production_plan_lines")
 }
